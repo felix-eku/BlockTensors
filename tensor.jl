@@ -38,6 +38,15 @@ macro SymmetrySector(name::Symbol, numbers)
     )
 end
 
+function Base.:+(x::S, ys::S...) where S <: SymmetrySector
+    S(; 
+        (
+            field => +(getfield(x, field), map(y -> getfield(y, field), ys)...) 
+            for field in fieldnames(S)
+        )...
+    )
+end
+
 struct Space{S <: SymmetrySector}
     dimensions::ImmutableDict{S, Int}
     dual::Bool
