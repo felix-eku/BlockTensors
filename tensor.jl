@@ -25,11 +25,11 @@ macro SymmetrySector(name::Symbol, numbers)
     )
     fields = Symbol[e isa Symbol ? e : e.args[1] for e in decls]
     types = [esc(e isa Symbol ? Int : e.args[2]) for e in decls]
-    numbers = [:($field::$type) for (field, type) in zip(fields, types)]
-    args = [Expr(:kw, :($(esc(field))::Integer), 0) for field in fields]
-    conversions = [
+    numbers = (:($field::$type) for (field, type) in zip(fields, types))
+    args = (Expr(:kw, :($(esc(field))::Integer), 0) for field in fields)
+    conversions = (
         :(convert($type, $(esc(field)))) for (field, type) in zip(fields, types)
-    ]
+    )
     constructor = :($name(; $(args...)) = new($(conversions...)))
     return Expr(
         :struct, false,                         # declare an immutable struct
