@@ -51,6 +51,18 @@ function Base.:-(x::S) where S <: SymmetrySector
     S(; (field => -(getfield(x, field)) for field in fieldnames(S))...)
 end
 
+function Base.show(io::IO, x::S) where S <: SymmetrySector
+    show(io, S)
+    print(io, "(")
+    sep = ""
+    for field in fieldnames(S)
+        print(io, sep, field, " = ")
+        show(io, getfield(x, field))
+        sep = ", "
+    end
+    print(io, ")")
+end
+
 struct Space{S <: SymmetrySector}
     dimensions::ImmutableDict{S, Int}
     dual::Bool
