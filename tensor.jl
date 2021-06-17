@@ -64,8 +64,17 @@ function Base.show(io::IO, x::S) where S <: SymmetrySector
 end
 
 struct Space{S <: SymmetrySector}
-    dimensions::ImmutableDict{S, Int}
+    dimensions::Dict{S, Int}
     dual::Bool
+end
+function Space{S}(dimensions::Dict{S, Int}) where {S <: SymmetrySector}
+    Space{S}(dimensions, false)
+end
+function Space(dimensions::Dict{S, Int}) where {S <: SymmetrySector}
+    Space{S}(dimensions)
+end
+function Space(dimension::Int, dual::Bool = false)
+    Space{Trivial}(Dict(Trivial() => dimension), dual)
 end
 
 struct Connection{S <: SymmetrySector}
