@@ -1,7 +1,5 @@
 module Tensors
 
-import Base.ImmutableDict
-
 abstract type SymmetrySector end
 
 struct Trivial <: SymmetrySector end
@@ -63,40 +61,20 @@ function Base.show(io::IO, x::S) where S <: SymmetrySector
     print(io, ")")
 end
 
-struct Space{S <: SymmetrySector}
-    dims::Dict{S, Int}
-    dual::Bool
-end
-Space{S}(dims::Dict{S, Int}) where {S <: SymmetrySector} = Space{S}(dims, false)
-Space(dims::Dict{S, Int}) where {S <: SymmetrySector} = Space{S}(dims)
-function Space(dim::Int, dual::Bool = false)
-    Space{Trivial}(Dict(Trivial() => dim), dual)
-end
-
-dual(space::Space) = Space(space.dims, !space.dual)
-
-function changedims(
-    space::Space{S}, dims::Pair{S, Int}...;
-    dual::Bool = space.dual
-) where {S <: SymmetrySector}
-    changedims(space, Dict(dims), dual)
-end
-function changedims(
-    space::Space{S}, dims::Dict{S, Int}, 
-    dual::Bool = space.dual
-) where {S <: SymmetrySector}
-    Space{S}(merge(space.dims, dims), dual)
-end
-
 struct Connection{S <: SymmetrySector}
+    dims::Dict{S, Int}
     name::Symbol
-    space::Space{S}
-    tags::ImmutableDict{Symbol, Int}
+    tags::Dict{Symbol, Any}
+end
+
+struct Connector{S <: SymmetrySector}
+    connection::Connection{S}
+    out::Bool
 end
 
 struct Tensor{T <: Number, S <: SymmetrySector, N} 
     components::Dict{NTuple{N, S}, Array{T, N}}
-    connections::NTuple{N, Connection{S}}
+    connectors::NTuple{N, Connector{S}}
 end
 
 end
