@@ -66,6 +66,14 @@ struct Connection{S <: SymmetrySector}
     name::Symbol
     tags::Dict{Symbol, Any}
 end
+function Connection(
+    dims::AbstractDict{S, <:Integer}, 
+    name::Union{Symbol, AbstractString}, 
+    tags::Pair{Symbol}...
+) where S <: SymmetrySector
+    Connection{S}(convert(Dict{S, Int}, dims), Symbol(name), Dict{Symbol, Any}(tags...))
+end
+Connection(dim::Integer, name, tags...) = Connection(Dict(Trivial() => dim), name, tags...)
 
 struct Connector{S <: SymmetrySector}
     connection::Connection{S}
