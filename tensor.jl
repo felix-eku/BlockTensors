@@ -120,9 +120,62 @@ function matchconnectors(a::Tuple{Vararg{Connector}}, b::Tuple{Vararg{Connector}
     return inds_a, inds_b, m - 1
 end
 
+
 struct Tensor{T <: Number, S <: SymmetrySector, N} 
     components::Dict{NTuple{N, S}, Array{T, N}}
     connectors::NTuple{N, Connector{S}}
+    function Tensor{T, S, N}(
+        components::Dict{NTuple{N, S}, Array{T, N}}, 
+        connectors::NTuple{N, Connector{S}};
+        check::Bool = true
+    ) where {T <: Number, S <: SymmetrySector, N}
+        if check
+            for (sectors, block) in components
+                _checkblocksize(connectors, size(block), sectors)
+            end
+        end
+        new(components, connectors)
+    end
+end
+function Tensor{T}(t::Tensor{Tprime, S, N}) where {T <: Number, Tprime <: Number, S <: SymmetrySector, N}
+    Tensor{T, S, N}(
+        Dict(sector => Array{T, N}(block) for (sector, block) in t.components), 
+        t.connectors, check = false
+    )
+end
+function Tensor{T}(
+    components::AbstractDict{NTuple{N, S}, AbstractArray{Tprime, N}},
+    connectors::Vararg{Connector{S}, N}
+) where {T <: Number, Tprime <: Number, S <: SymmetrySector, N}
+    Tensor{T, S, N}(convert(Dict{NTuple{N, S}, Array{T, N}}, components), connectors)
+end
+function Tensor{T}(connectors::Vararg{Connector{S}, N}) where {T <: Number, S <: SymmetrySector, N}
+    Tensor{T, S, N}(Dict{NTuple{N, S}, Array{T, N}}(), connectors, check = false)
+end
+function Tensor(
+    components::AbstractDict{NTuple{N, S}, AbstractArray{T, N}}, 
+    connectors::Vararg{Connector{S}, N}
+) where {T <: Number, S <: SymmetrySector, N}
+    Tensor{T}(components, connectors...)
+end
+function Tensor(components::Array{T, N}, connectors::Vararg{Connector{Trivial}, N}) where {T <: Number, N}
+    sectors = ntuple(k -> Trivial(), Val(N))
+    Tensor{T, Trivial, N}(Dict(sectors => components), connectors)
+end
+
+function _checkblocksize(
+    connectors::NTuple{N, Connector{S}}, blocksize::NTuple{N, Int}, sectors::NTuple{N, S}
+) where {S <: SymmetrySector, N}
+    for k = 1:N
+        dim = blocksize[k]
+        dim == get!(connectors[k].connection.dims, sectors[k], dim) ||
+            throw(
+                DimensionMismatch(
+                    "dimension $k of block for sectors $sectors does not match " *
+                    "dimension specified by connection"
+                )
+            )
+    end
 end
 
 end
