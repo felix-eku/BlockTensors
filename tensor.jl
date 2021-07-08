@@ -92,7 +92,7 @@ struct Connector{S <: SymmetrySector}
 end
 Connector(connection::Connection; out::Bool) = Connector(connection, out)
 
-function matchconnectors(a::Tuple{Vararg{Connector}}, b::Tuple{Vararg{Connector}})
+function matchconnectors(a::Tuple{Vararg{Connector}}, b::Tuple{Vararg{Connector}}; direct::Bool = false)
     @assert allunique(a) "Connectors a are not unique."
     @assert allunique(b) "Connectors b are not unique."
     inds_a = collect(only(axes(a)))
@@ -100,11 +100,12 @@ function matchconnectors(a::Tuple{Vararg{Connector}}, b::Tuple{Vararg{Connector}
     m = 1
     @assert m == firstindex(inds_a) == firstindex(inds_b) "Array indices don't start at 1 ?!?"
     for (i_a, k_a) in enumerate(inds_a)
-        con = a[k_a]
+        con_a = a[k_a]
         unmatched_b = @view inds_b[m:end]
-        for (i_b, k_b) in enumerate(unmatched_b) 
-            if con.connection ≡ b[k_b].connection
-                @assert con.out ⊻ b[k_b].out "Connectors for same connection do not match."
+        for (i_b, k_b) in enumerate(unmatched_b)
+            con_b = b[k_b]
+            if direct ? con_a == con_b : con_a.connection ≡ con_b.connection
+                @assert direct || (con_a.out ⊻ con_b.out) "Connectors for same connection do not match."
                 if i_a > m
                     inds_a[m], inds_a[i_a] = inds_a[i_a], inds_a[m]
                 end
@@ -176,6 +177,38 @@ function _checkblocksize(
                 )
             )
     end
+end
+
+function _connectorpermutation(
+    t::Tensor{T, S, N}, connects::NTuple{N, Connector}
+) where {T <: Number, S <: SymmetrySector, N}
+    conrange, perm, n = matchconnectors(t.connectors, connects, direct = true)
+    n == N || throw(ArgumentError("$connects is not a permutation of the connectors of the tensor"))
+    @assert conrange == 1:N
+    return perm
+end
+
+function _getsectors_indices(::Type{Trivial}, blockinds::NTuple{N}) where N
+    sectors = ntuple(k -> Trivial(), Val(N))
+    return sectors, blockinds
+end
+function _getsectors_indices(
+    ::Type{S}, blockinds::Tuple{Vararg{Pair{S, <:Any}}}
+) where S <: SymmetrySector
+    sectors = getproperty.(blockinds, :first)
+    inds = getproperty.(blockinds, :second)
+    return sectors, inds
+end
+
+function Base.getindex(
+    t::Tensor{T, S, N}, 
+    indices::Vararg{Pair{Connector{S}, <: Any}, N}
+) where {T <: Number, S <: SymmetrySector, N}
+    connects = getproperty.(indices, :first)
+    perm = _connectorpermutation(t, connects)
+    blockinds = getproperty.(indices, :second)
+    sectors, inds = _getsectors_indices(S, blockinds)
+    return PermutedDimsArray(t.components[sectors[perm]], invperm(perm))[inds...]
 end
 
 end
