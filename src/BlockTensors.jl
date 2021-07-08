@@ -75,28 +75,51 @@ struct Connection{S <: SymmetrySector}
     name::Symbol
     tags::Dict{Symbol, Any}
 end
-function Connection(
-    dims::AbstractDict{S, <: Integer}, 
-    name::SymbolOrString, 
-    tags::Pair{<: SymbolOrString}...
+function Connection{S}(
+    dims::AbstractDict, name::SymbolOrString; tags...
 ) where S <: SymmetrySector
-    Connection{S}(
-        convert(Dict{S, Int}, dims), Symbol(name), 
-        Dict(Symbol(label) => value for (label, value) in tags)
-    )
+    Connection{S}(convert(Dict{S, Int}, dims), Symbol(name), Dict(tags))
 end
-function Connection{S}(name::SymbolOrString, tags...) where S <: SymmetrySector
-    Connection(Dict{S, Int}(), name, tags...)
+function Connection(
+    dims::AbstractDict{S, <: Integer}, name::SymbolOrString; tags...
+) where S <: SymmetrySector
+    Connection{S}(dims, name; tags...)
 end
-Connection(name::SymbolOrString, tags...) = Connection{Trivial}(name, tags...)
-Connection{Trivial}(dim::Integer, name, tags...) = Connection(Dict(Trivial() => dim), name, tags...)
-Connection(dim::Integer, name, tags...) = Connection{Trivial}(dim, name, tags...) 
+function Connection{S}(name::SymbolOrString; tags...) where S <: SymmetrySector
+    Connection(Dict{S, Int}(), name; tags...)
+end
+Connection(name::SymbolOrString; tags...) = Connection{Trivial}(name; tags...)
+Connection{Trivial}(dim::Integer, name; tags...) = Connection(Dict(Trivial() => dim), name; tags...)
+Connection(dim::Integer, name; tags...) = Connection{Trivial}(dim, name; tags...) 
+
+function Base.show(io::IO, con::Connection{S}) where S <: SymmetrySector
+    T = typeof(con)
+    show(io, (:typeinfo => T) in io ? Connection : T)
+    print(io, "(")
+    show(IOContext(io, :typeinfo => Dict{S, Int}), con.dims)
+    print(io, ", ")
+    show(io, con.name)
+    for (label, value) in con.tags
+        print(io, ", ", label, get(io, :compact, false) ? "=" : " = ")
+        show(io, value)
+    end
+    print(io, ")")
+end
 
 struct Connector{S <: SymmetrySector}
     connection::Connection{S}
     out::Bool
 end
 Connector(connection::Connection; out::Bool) = Connector(connection, out)
+
+function Base.show(io::IO, con::Connector{S}) where S <: SymmetrySector
+    T = typeof(con)
+    show(io, (:typeinfo => T) in io ? Connector : T)
+    print(io, "(")
+    show(IOContext(io, :typeinfo => Connection{S}), con.connection)
+    print(io, ", ", con.out)
+    print(io, ")")
+end
 
 function matchconnectors(a::Tuple{Vararg{Connector}}, b::Tuple{Vararg{Connector}}; direct::Bool = false)
     @assert allunique(a) "Connectors a are not unique."
