@@ -1,6 +1,10 @@
-module Tensors
+module BlockTensors
 
 using DataStructures
+
+export SymmetrySector, Trivial, @SymmetrySector
+export Connection, Connector, matchconnectors
+export Tensor
 
 abstract type SymmetrySector end
 

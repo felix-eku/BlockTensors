@@ -1,0 +1,7 @@
+name = "BlockTensors"
+uuid = "501571fb-40ef-4c91-8962-06e2936314b9"
+authors = ["Felix Kunzmann <fe.kunzmann@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
