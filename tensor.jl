@@ -226,4 +226,59 @@ function Base.setindex!(
 end
 
 
+function _map(
+    f_binary, f_unary, a::Tensor{Ta, S, N}, bs::Vararg{Tensor{Tb, S, N} where Tb <: Number}
+) where {Ta <: Number, S <: SymmetrySector, N}
+    T = promote_type(Ta, map(TensorT -> TensorT.parameters[1], typeof(bs).parameters)...)
+    t = Tensor{T}(a)
+    for b in bs
+        perm = _connectorpermutation(t, b.connectors)
+        for (sectors_perm, block_b) in b.components
+            sectors = sectors_perm[perm]
+            block_b = PermutedDimsArray(block_b, perm)
+            block = get(t.components, sectors, nothing)
+            if block === nothing
+                _checkblocksize(t.connectors, size(block_b), sectors)
+                comps[sectors] = f_unary(block_b)
+            else
+                broadcast!(f_binary, block, block, block_b)
+            end
+        end
+    end
+    return t
+end
+
+function Base.:+(a::Tensor{Ta}, b::Tb) where {Ta <: Number, Tb <: Number}
+    t = Tensor{promote_type(Ta, Tb)}(a)
+    for block in values(t.components)
+        block .+= b
+    end
+    return t
+end
+function Base.:+(a::Ta, b::Tensor{Tb}) where {Ta <: Number, Tb <: Number}
+    t = Tensor{promote_type(Ta, Tb)}(b)
+    for block in values(t.components)
+        broadcast!(+, block, a, block)
+    end
+    return t
+end
+Base.:+(a::Tensor, b::Number, bs::Number...) = a + (b + sum(bs))
+Base.:+(a::Tensor, bs::Tensor...) = _map(+, x -> x, a, bs...)
+
+function Base.:-(a::Tensor{Ta}, b::Tb) where {Ta <: Number, Tb <: Number}
+    t = Tensor{promote_type(Ta, Tb)}(a)
+    for block in values(t.components)
+        block .-= b
+    end
+    return t
+end
+function Base.:-(a::Ta, b::Tensor{Tb}) where {Ta <: Number, Tb <: Number}
+    t = Tensor{promote_type(Ta, Tb)}(b)
+    for block in values(t.components)
+        broadcast!(-, block, a, block)
+    end
+    return t
+end
+Base.:-(a::Tensor, b::Tensor) = _map(-, x -> -x, a, b)
+
 end
