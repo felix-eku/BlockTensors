@@ -211,4 +211,19 @@ function Base.getindex(
     return PermutedDimsArray(t.components[sectors[perm]], invperm(perm))[inds...]
 end
 
+function Base.setindex!(
+    t::Tensor{T, S, N},
+    comps::Array{T, N},
+    indices::Vararg{Pair{Connector{S}, S}}
+) where {T <: Number, S <: SymmetrySector, N}
+    connects = getproperty.(indices, :first)
+    perm = _connectorpermutation(t, connects)
+    sectors = getproperty.(indices, :second)[perm]
+    sectors ∉ t.components || throw(ArgumentError("block for sectors $sectors already set"))
+    block = permutedims(comps, perm)
+    _checkblocksize(t.connectors, size(block), sectors)
+    t.components[sectors] = block
+end
+
+
 end
