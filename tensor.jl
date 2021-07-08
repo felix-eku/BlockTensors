@@ -61,19 +61,30 @@ function Base.show(io::IO, x::S) where S <: SymmetrySector
     print(io, ")")
 end
 
+
+SymbolOrString = Union{Symbol, AbstractString}
+
 struct Connection{S <: SymmetrySector}
     dims::Dict{S, Int}
     name::Symbol
     tags::Dict{Symbol, Any}
 end
 function Connection(
-    dims::AbstractDict{S, <:Integer}, 
-    name::Union{Symbol, AbstractString}, 
-    tags::Pair{Symbol}...
+    dims::AbstractDict{S, <: Integer}, 
+    name::SymbolOrString, 
+    tags::Pair{<: SymbolOrString}...
 ) where S <: SymmetrySector
-    Connection{S}(convert(Dict{S, Int}, dims), Symbol(name), Dict{Symbol, Any}(tags...))
+    Connection{S}(
+        convert(Dict{S, Int}, dims), Symbol(name), 
+        Dict(Symbol(label) => value for (label, value) in tags)
+    )
 end
-Connection(dim::Integer, name, tags...) = Connection(Dict(Trivial() => dim), name, tags...)
+function Connection{S}(name::SymbolOrString, tags...) where S <: SymmetrySector
+    Connection(Dict{S, Int}(), name, tags...)
+end
+Connection(name::SymbolOrString, tags...) = Connection{Trivial}(name, tags...)
+Connection{Trivial}(dim::Integer, name, tags...) = Connection(Dict(Trivial() => dim), name, tags...)
+Connection(dim::Integer, name, tags...) = Connection{Trivial}(dim, name, tags...) 
 
 struct Connector{S <: SymmetrySector}
     connection::Connection{S}
