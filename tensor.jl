@@ -90,6 +90,7 @@ struct Connector{S <: SymmetrySector}
     connection::Connection{S}
     out::Bool
 end
+Connector(connection::Connection; out::Bool) = Connector(connection, out)
 
 function matchconnectors(a::Tuple{Vararg{Connector}}, b::Tuple{Vararg{Connector}})
     @assert allunique(a) "Connectors a are not unique."
