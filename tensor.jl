@@ -1,5 +1,7 @@
 module Tensors
 
+using DataStructures
+
 abstract type SymmetrySector end
 
 struct Trivial <: SymmetrySector end
@@ -280,5 +282,69 @@ function Base.:-(a::Ta, b::Tensor{Tb}) where {Ta <: Number, Tb <: Number}
     return t
 end
 Base.:-(a::Tensor, b::Tensor) = _map(-, x -> -x, a, b)
+
+function _arrangecomps(
+    comps::Dict{NTuple{N, S}, Array{T, N}}, 
+    inner::NTuple{M, Int}, 
+    outer::NTuple{NminusM, Int}
+) where {T <: Number, S <: SymmetrySector, N, M, NminusM}
+    @assert N == M + NminusM
+    inner = collect(inner)
+    outer = collect(outer)
+    perm = outer..., inner...
+    CompVec = Vector{Pair{NTuple{NminusM, S}, Array{T, N}}}
+    arcomps = DefaultDict{NTuple{M, S}, CompVec}(CompVec)
+    for (sectors, compsblock) in pairs(comps)
+        push!(arcomps[sectors[inner]], sectors[outer] => permutedims(compsblock, perm))
+    end
+    return arcomps
+end
+
+function _mulblocks(
+    arcomps::DefaultDict{NTuple{M, S}, Vector{Pair{NTuple{Nleft, S}, Array{Ta, Na}}}},
+    comps::Dict{NTuple{Nb, S}, Array{Tb, Nb}},
+    inner::NTuple{M, Int},
+    outer::NTuple{Nright, Int}, 
+) where {Ta <: Number, Tb <: Number, S <: SymmetrySector, M, Na, Nb, Nleft, Nright}
+    @assert Na == Nleft + M
+    @assert Nb == Nright + M
+    inner = collect(inner)
+    outer = collect(outer)
+    perm = inner..., outer...
+    N = Nleft + Nright
+    T = promote_type(Ta, Tb)
+    mulcomps = Dict{NTuple{N, S}, Array{T, N}}()
+    for (sectors, rightblock) in comps
+        rightblock = permutedims(rightblock, perm)
+        rightsize = size(rightblock)[begin + M : end]
+        rightmatrix = reshape(rightblock, :, prod(rightsize))
+        rightsecs = sectors[outer]
+        for (leftsecs, leftblock) in arcomps[sectors[inner]]
+            leftsize = size(leftblock)[begin : end - M]
+            leftmatrix = reshape(leftblock, prod(leftsize), :)
+            secs = tuple(leftsecs..., rightsecs...)
+            block = reshape(leftmatrix * rightmatrix, leftsize..., rightsize...)
+            resultblock = get!(mulcomps, secs, block)
+            if resultblock ≢ block  # resultblock not set by previous line
+                resultblock .+= block
+            end
+        end
+    end
+    return T, N, mulcomps
+end
+
+function Base.:*(
+    a::Tensor{Ta, S}, b::Tensor{Tb, S}
+) where {Ta <: Number, Tb <: Number, S <: SymmetrySector}
+    inds_a, inds_b, m = matchconnectors(a.connectors, b.connectors)
+    outer_a = @view inds_a[begin + m : end]
+    inner_a = @view inds_a[begin : begin + m - 1]
+    outer_b = @view inds_b[begin + m : end]
+    inner_b = @view inds_b[begin : begin + m - 1]
+    arcomps = _arrangecomps(a.components, Tuple(inner_a), Tuple(outer_a))
+    T, N, comps = _mulblocks(arcomps, b.components, Tuple(inner_b), Tuple(outer_b))
+    connects = tuple(a.connectors[outer_a]..., b.connectors[outer_b]...)
+    return Tensor{T, S, N}(comps, connects, check = false)
+end
 
 end
