@@ -97,7 +97,7 @@ function Connection{S}(name::SymbolOrString; tags...) where S <: SymmetrySector
 end
 Connection(name::SymbolOrString; tags...) = Connection{Trivial}(name; tags...)
 Connection{Trivial}(dim::Integer, name; tags...) = Connection(Dict(Trivial() => dim), name; tags...)
-Connection(dim::Integer, name; tags...) = Connection{Trivial}(dim, name; tags...) 
+Connection(dim::Integer, name; tags...) = Connection{Trivial}(dim, name; tags...)
 
 function Base.show(io::IO, con::Connection{S}) where S <: SymmetrySector
     T = typeof(con)
@@ -181,7 +181,7 @@ function Tensor{T}(t::Tensor{Tprime, S, N}) where {T <: Number, Tprime <: Number
     )
 end
 function Tensor{T}(
-    components::AbstractDict{NTuple{N, S}, AbstractArray{Tprime, N}},
+    components::AbstractDict{NTuple{N, S}, <:AbstractArray{Tprime, N}},
     connectors::Vararg{Connector{S}, N}
 ) where {T <: Number, Tprime <: Number, S <: SymmetrySector, N}
     Tensor{T, S, N}(convert(Dict{NTuple{N, S}, Array{T, N}}, components), connectors)
@@ -190,12 +190,15 @@ function Tensor{T}(connectors::Vararg{Connector{S}, N}) where {T <: Number, S <:
     Tensor{T, S, N}(Dict{NTuple{N, S}, Array{T, N}}(), connectors, check = false)
 end
 function Tensor(
-    components::AbstractDict{NTuple{N, S}, AbstractArray{T, N}}, 
+    components::AbstractDict{NTuple{N, S}, <:AbstractArray{T, N}}, 
     connectors::Vararg{Connector{S}, N}
 ) where {T <: Number, S <: SymmetrySector, N}
     Tensor{T}(components, connectors...)
 end
-function Tensor(components::Array{T, N}, connectors::Vararg{Connector{Trivial}, N}) where {T <: Number, N}
+function Tensor(
+    components::AbstractArray{T, N}, 
+    connectors::Vararg{Connector{Trivial}, N}
+) where {T <: Number, N}
     sectors = ntuple(k -> Trivial(), Val(N))
     Tensor{T, Trivial, N}(Dict(sectors => components), connectors)
 end
