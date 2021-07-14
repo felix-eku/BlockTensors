@@ -42,6 +42,13 @@ macro SymmetrySector(name::Symbol, numbers)
     )
 end
 
+function Base.isless(x::S, y::S) where S <: SymmetrySector
+    for field in fieldnames(S)
+        getfield(x, field) < getfield(y, field) || return false
+    end
+    return true
+end
+
 function Base.:+(x::S, ys::S...) where S <: SymmetrySector
     S(; 
         (
