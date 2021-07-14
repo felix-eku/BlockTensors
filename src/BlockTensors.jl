@@ -240,6 +240,12 @@ function _getsectors_indices(
     inds = getproperty.(blockinds, :second)
     return sectors, inds
 end
+function _getsectors_indices(
+    ::Type{S}, sectors::Tuple{Vararg{S}}
+) where S <: SymmetrySector
+    inds = fill(:, length(sectors))
+    return sectors, inds
+end
 
 function Base.getindex(
     t::Tensor{T, S, N}, 
