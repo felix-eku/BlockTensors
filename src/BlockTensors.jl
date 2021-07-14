@@ -392,4 +392,124 @@ function Base.:*(
     return Tensor{T, S, N}(comps, connects, check = false)
 end
 
+
+DimsVector{S, N} = Vector{Pair{NTuple{N, S}, Int}}
+function combinesectors_dims(connectors::NTuple{N, Connector{S}}) where {S <: SymmetrySector, N}
+    combsectordims = DefaultDict{S, DimsVector{S, N}}(DimsVector{S, N})
+    sectors = Vector{S}(undef, N)
+    combsectors = Vector{S}(undef, N)
+    combdims = Vector{Int}(undef, N)
+    iterstates = Vector{Union{Nothing, Int}}(nothing, N)
+    k = 1
+    while k > 0
+        if k > N
+            push!(combsectordims[combsectors[N]], Tuple(sectors) => combdims[N])
+            k -= 1
+            continue
+        end
+        con = connectors[k]
+        dims = con.connection.dims
+        state = iterstates[k]
+        iter = state ≡ nothing ? iterate(dims) : iterate(dims, state)
+        if iter ≡ nothing
+            iterstates[k] = nothing
+            k -= 1
+            continue
+        end
+        (sector, dim), state = iter
+        iterstates[k] = state
+        sectors[k] = sector
+        if !con.out
+            sector = -sector
+        end
+        combsectors[k] = k == 1 ? sector : combsectors[k-1] + sector
+        combdims[k] = k == 1 ? dim : combdims[k-1] * dim
+        k += 1
+    end
+    return combsectordims
+end
+
+Arrangement{S, N} = Dict{NTuple{N, S}, Tuple{S, UnitRange{Int}}}
+struct ConnectorCombinantion{S <: SymmetrySector, N}
+    connector::Connector{S}
+    arrangement::Arrangement{S, N}
+    connectors::NTuple{N, Connector{S}}
+end
+
+function buildarrangement(
+    combsectordims::DefaultDict{S, DimsVector{S, N}}
+) where {S <: SymmetrySector, N}
+    arrangement = Arrangement{S, N}()
+    combdims = Dict{S, Int}()
+    for (combsect, sectordims) in combsectordims
+        sort!(sectordims, by=first)
+        stop = 0
+        for (sectors, dim) in sectordims
+            start = stop + 1
+            stop += dim
+            arrangement[sectors] = combsect, start : stop
+        end
+        combdims[combsect] = stop
+    end
+    return arrangement, combdims
+end
+
+function mergeconnectors(
+    connectors::Tuple{Connector{S}, Vararg{Connector{S}}}
+) where S <: SymmetrySector
+    combsectordims = combinesectors_dims(connectors)
+    arrangement, combdims = buildarrangement(combsectordims)
+    name = Symbol((c.connection.name for c in connectors)...)
+    tags = mergewith(Set ∘ union, (c.connection.tags for c in connectors)...)
+    balance = sum(c.out ? +1 : -1 for c in connectors)
+    out = balance == 0 ? first(connectors).out : balance > 0
+    connector = Connector(Connection{S}(combdims, name, tags); out)
+    return ConnectorCombinantion(connector, arrangement, connectors)
+end
+mergeconnectors(connectors::Vararg{Connector}) = mergeconnectors(connectors)
+
+function mergeconnectors(t::Tensor{T, S}, combines...) where {T <: Number, S <: SymmetrySector}
+    combranges = accumulate(combines, init=1:0) do r, c
+        r.stop + 1 : r.stop + length(c)
+    end
+    connects = tuple((combines...)...)
+    conrange, perm, m = matchconnectors(connects, t.connectors, direct = true)
+    (m == length(connects) && conrange == 1:m) || 
+        throw(ArgumentError("Connector to combine is not part of the Tensor"))
+    remrange_old = length(connects) + 1 : rank(t)
+    Ncomb = length(combines)
+    N = Ncomb + length(remrange_old)
+    remrange_new = Ncomb + 1 : N
+    concombs = map(comb -> mergeconnectors(comb...), combines)
+    comps = Dict{NTuple{N, S}, Array{T, N}}()
+    combsects = Vector{S}(undef, N)
+    ranges = Vector{UnitRange{Int}}(undef, N)
+    fulldims = Vector{Int}(undef, N)
+    for (sectors, block) in t.components
+        permsects = sectors[perm]
+        permblock = permutedims(block, perm)
+        for (k, combrange) in pairs(combranges)
+            combsects[k], ranges[k] = concombs[k].arrangement[permsects[combrange]]
+        end
+        combsects[remrange_new] .= permsects[remrange_old]
+        map!(view(ranges, remrange_new), remrange_old) do k
+            firstindex(permblock, k) : lastindex(permblock, k)
+        end
+        combblock = reshape(permblock, map(length, ranges)...)
+        fullblock = get!(comps, Tuple(combsects)) do 
+            for (k, sector) in pairs(@view combsects[1:Ncomb])
+                fulldims[k] = concombs[k].connector.connection.dims[sector]
+            end
+            fulldims[remrange_new] .= length.(@view ranges[remrange_old])
+            zeros(T, fulldims...)
+        end
+        fullblock[ranges...] = combblock
+    end
+    combconnects = tuple(
+        (c.connector for c in concombs)...,
+        t.connectors[perm][remrange_old]...
+    )
+    return Tensor{T, S, N}(comps, combconnects, check = false), concombs
+end
+
 end
