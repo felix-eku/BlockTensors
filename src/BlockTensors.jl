@@ -286,7 +286,7 @@ function _map(
             block = get(t.components, sectors, nothing)
             if block === nothing
                 _checkblocksize(t.connectors, size(block_b), sectors)
-                comps[sectors] = f_unary(block_b)
+                t.components[sectors] = f_unary(block_b)
             else
                 broadcast!(f_binary, block, block, block_b)
             end
