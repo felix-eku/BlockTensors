@@ -1,5 +1,6 @@
 module BlockTensors
 
+using Base.Iterators
 using DataStructures
 
 export SymmetrySector, Trivial, @SymmetrySector
@@ -511,5 +512,65 @@ function mergeconnectors(t::Tensor{T, S}, combines...) where {T <: Number, S <: 
     )
     return Tensor{T, S, N}(comps, combconnects, check = false), concombs
 end
+
+
+RangeSectors{S, N} = Vector{Pair{UnitRange{Int}, NTuple{N, S}}}
+function invertarrangement(arrangement::Arrangement{S, N}) where {S <: SymmetrySector, N}
+    rangesectors = DefaultDict{S, RangeSectors{S, N}}(RangeSectors{S, N})
+    for (sectors, (sector, range)) in arrangement
+        push!(rangesectors[sector], range => sectors)
+    end
+    return rangesectors
+end
+
+function separateconnectors(
+    t::Tensor{T, S, N}, separations::ConnectorCombinantion{S}...
+) where {T <: Number, S <: SymmetrySector, N}
+    rangesectors = invertarrangement.(getfield.(separations, :arrangement))
+    conrange, seppos, m = matchconnectors(
+        t.connectors, getfield.(separations, :connector), direct = true
+    )
+    m == length(seppos) || throw(
+        ArgumentError("Connector to separate is not part of the Tensor")
+    )
+    @assert conrange == 1:N
+    rempos = setdiff(1:N, seppos)
+    parts = fill(1, N)
+    parts[seppos] .= length.(getfield.(separations, :connectors))
+    sectranges = accumulate(parts, init=1:0) do r, c
+        r.stop + 1 : r.stop + c
+    end
+    @assert all(r -> r.start == r.stop, sectranges[rempos])
+    rempos_new = getfield.(view(sectranges, rempos), :start)
+    sepranges = sectranges[seppos]
+    Nsep = sectranges[end].stop
+    connectors = Vector{Connector{S}}(undef, Nsep)
+    connectors[rempos_new] .= t.connectors[rempos]
+    for (k, seprange) in pairs(sepranges)
+        connectors[seprange] .= separations[k].connectors
+    end
+    comps = Dict{NTuple{Nsep, S}, Array{T, Nsep}}()
+    ranges = Vector{Union{Colon, UnitRange{Int}}}(undef, N)
+    ranges[rempos] .= Colon()
+    sepsectors = Vector{S}(undef, Nsep)
+    sepdims = Vector{Int}(undef, Nsep)
+    for (sectors, block) in t.components
+        sepsectors[rempos_new] .= sectors[rempos]
+        sepdims[rempos_new] .= size(block)[rempos]
+        rangesectvects = (rangesectors[k][sectors[seppos[k]]] for k = 1:m)
+        for rangesects in product(rangesectvects...)
+            for (k, (range, sects)) in pairs(rangesects)
+                ranges[seppos[k]] = range
+                sepsectors[sepranges[k]] .= sects
+                connects = separations[k].connectors
+                sepdims[sepranges[k]] .= getindex.(
+                    getfield.(getfield.(connects, :connection), :dims), sects
+                )
+            end
+            comps[Tuple(sepsectors)] = reshape(block[ranges...], sepdims...)
+        end
+    end
+    Tensor{T, S, Nsep}(comps, Tuple(connectors), check = false)
+end 
 
 end
