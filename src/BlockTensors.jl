@@ -215,6 +215,8 @@ function _checkblocksize(
     end
 end
 
+rank(::Tensor{T, S, N}) where {T <: Number, S <: SymmetrySector, N} = N
+
 function _connectorpermutation(
     t::Tensor{T, S, N}, connects::NTuple{N, Connector}
 ) where {T <: Number, S <: SymmetrySector, N}
