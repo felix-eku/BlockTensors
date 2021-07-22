@@ -395,7 +395,9 @@ end
 
 
 DimsVector{S, N} = Vector{Pair{NTuple{N, S}, Int}}
-function combinesectors_dims(connectors::NTuple{N, Connector{S}}) where {S <: SymmetrySector, N}
+function combinesectors_dims(
+    connectors::NTuple{N, Connector{S}}
+) where {S <: SymmetrySector, N}
     combsectordims = DefaultDict{S, DimsVector{S, N}}(DimsVector{S, N})
     sectors = Vector{S}(undef, N)
     combsectors = Vector{S}(undef, N)
@@ -438,11 +440,14 @@ struct ConnectorCombinantion{S <: SymmetrySector, N}
 end
 
 function buildarrangement(
-    combsectordims::DefaultDict{S, DimsVector{S, N}}
+    combsectordims::DefaultDict{S, DimsVector{S, N}}, out::Bool
 ) where {S <: SymmetrySector, N}
     arrangement = Arrangement{S, N}()
     combdims = Dict{S, Int}()
     for (combsect, sectordims) in combsectordims
+        if !out
+            combsect = -combsect
+        end
         sort!(sectordims, by=first)
         stop = 0
         for (sectors, dim) in sectordims
@@ -458,22 +463,25 @@ end
 function mergeconnectors(
     connectors::Tuple{Connector{S}, Vararg{Connector{S}}}
 ) where S <: SymmetrySector
-    combsectordims = combinesectors_dims(connectors)
-    arrangement, combdims = buildarrangement(combsectordims)
     name = Symbol((c.connection.name for c in connectors)...)
     tags = mergewith(Set ∘ union, (c.connection.tags for c in connectors)...)
     balance = sum(c.out ? +1 : -1 for c in connectors)
     out = balance == 0 ? first(connectors).out : balance > 0
+    combsectordims = combinesectors_dims(connectors)
+    arrangement, combdims = buildarrangement(combsectordims, out)
     connector = Connector(Connection{S}(combdims, name, tags); out)
     return ConnectorCombinantion(connector, arrangement, connectors)
 end
 mergeconnectors(connectors::Vararg{Connector}) = mergeconnectors(connectors)
 
-function mergeconnectors(t::Tensor{T, S}, combines...) where {T <: Number, S <: SymmetrySector}
-    combranges = accumulate(combines, init=1:0) do r, c
-        r.stop + 1 : r.stop + length(c)
+function mergeconnectors(
+    t::Tensor{T, S}, combines...
+) where {T <: Number, S <: SymmetrySector}
+    combranges = accumulate(combines, init=1:0) do r, cs
+        s = r.stop
+        s + 1 : s + length(cs)
     end
-    connects = tuple((combines...)...)
+    connects = Tuple(flatten(combines))
     conrange, perm, m = matchconnectors(connects, t.connectors, direct = true)
     (m == length(connects) && conrange == 1:m) || 
         throw(ArgumentError("Connector to combine is not part of the Tensor"))
@@ -493,10 +501,8 @@ function mergeconnectors(t::Tensor{T, S}, combines...) where {T <: Number, S <: 
             combsects[k], ranges[k] = concombs[k].arrangement[permsects[combrange]]
         end
         combsects[remrange_new] .= permsects[remrange_old]
-        map!(view(ranges, remrange_new), remrange_old) do k
-            firstindex(permblock, k) : lastindex(permblock, k)
-        end
-        combblock = reshape(permblock, map(length, ranges)...)
+        ranges[remrange_new] .= axes.(Ref(permblock), remrange_old)
+        combblock = reshape(permblock, length.(ranges)...)
         fullblock = get!(comps, Tuple(combsects)) do 
             for (k, sector) in pairs(@view combsects[1:Ncomb])
                 fulldims[k] = concombs[k].connector.connection.dims[sector]
@@ -507,8 +513,8 @@ function mergeconnectors(t::Tensor{T, S}, combines...) where {T <: Number, S <: 
         fullblock[ranges...] = combblock
     end
     combconnects = tuple(
-        (c.connector for c in concombs)...,
-        t.connectors[perm][remrange_old]...
+        getfield.(concombs, :connector)..., 
+        t.connectors[perm[remrange_old]]...
     )
     return Tensor{T, S, N}(comps, combconnects, check = false), concombs
 end
@@ -527,18 +533,20 @@ function separateconnectors(
     t::Tensor{T, S, N}, separations::ConnectorCombinantion{S}...
 ) where {T <: Number, S <: SymmetrySector, N}
     rangesectors = invertarrangement.(getfield.(separations, :arrangement))
-    conrange, seppos, m = matchconnectors(
-        t.connectors, getfield.(separations, :connector), direct = true
+    conrange, pos, m = matchconnectors(
+        getfield.(separations, :connector), t.connectors, direct = true
     )
-    m == length(seppos) || throw(
+    m == length(conrange) || throw(
         ArgumentError("Connector to separate is not part of the Tensor")
     )
-    @assert conrange == 1:N
-    rempos = setdiff(1:N, seppos)
-    parts = fill(1, N)
-    parts[seppos] .= length.(getfield.(separations, :connectors))
-    sectranges = accumulate(parts, init=1:0) do r, c
-        r.stop + 1 : r.stop + c
+    @assert conrange == 1:m
+    seppos = pos[begin : m]
+    rempos = pos[m + 1 : end]
+    seplengths = ones(Int, N)
+    seplengths[seppos] .= length.(getfield.(separations, :connectors))
+    sectranges = accumulate(seplengths, init=1:0) do r, l
+        s = r.stop
+        s + 1 : s + l
     end
     @assert all(r -> r.start == r.stop, sectranges[rempos])
     rempos_new = getfield.(view(sectranges, rempos), :start)
@@ -567,10 +575,13 @@ function separateconnectors(
                     getfield.(getfield.(connects, :connection), :dims), sects
                 )
             end
-            comps[Tuple(sepsectors)] = reshape(block[ranges...], sepdims...)
+            subblock = block[ranges...]
+            if !iszero(subblock)
+                comps[Tuple(sepsectors)] = reshape(subblock, sepdims...)
+            end
         end
     end
     Tensor{T, S, Nsep}(comps, Tuple(connectors), check = false)
-end 
+end
 
 end
