@@ -1,11 +1,12 @@
 module BlockTensors
 
 using Base.Iterators
+using LinearAlgebra
 using DataStructures
 
 export SymmetrySector, Trivial, @SymmetrySector
-export Connection, Connector, matchconnectors
-export Tensor
+export Connection, Connector, replicate, dual, matchconnectors
+export Tensor, mergeconnectors, separateconnectors, svd, qr, lq
 
 abstract type SymmetrySector end
 
@@ -100,6 +101,10 @@ Connection(name::SymbolOrString; tags...) = Connection{Trivial}(name; tags...)
 Connection{Trivial}(dim::Integer, name; tags...) = Connection(Dict(Trivial() => dim), name; tags...)
 Connection(dim::Integer, name; tags...) = Connection{Trivial}(dim, name; tags...)
 
+function replicate(c::Connection{S}) where S <: SymmetrySector
+    Connection{S}(c.name; c.tags...)
+end
+
 function Base.show(io::IO, con::Connection{S}) where S <: SymmetrySector
     T = typeof(con)
     show(io, (:typeinfo => T) in io ? Connection : T)
@@ -118,7 +123,13 @@ struct Connector{S <: SymmetrySector}
     connection::Connection{S}
     out::Bool
 end
-Connector(connection::Connection; out::Bool) = Connector(connection, out)
+Connector(connection::Connection; out::Bool = false) = Connector(connection, out)
+
+function replicate(c::Connector; dual::Bool = false)
+    Connector(replicate(c.connection), dual ? !c.out : c.out)
+end
+
+dual(c::Connector) = Connector(c.connection, !c.out)
 
 function Base.show(io::IO, con::Connector{S}) where S <: SymmetrySector
     T = typeof(con)
@@ -158,6 +169,11 @@ function matchconnectors(a::Tuple{Vararg{Connector}}, b::Tuple{Vararg{Connector}
     return inds_a, inds_b, m - 1
 end
 
+function mergesectors(
+    sectors::NTuple{N, S}, connectors::NTuple{N, Connector{S}}
+) where {N, S <: SymmetrySector}
+    mapreduce((s, c) -> c.out ? s : -s, +, sectors, connectors)
+end
 
 struct Tensor{T <: Number, S <: SymmetrySector, N} 
     components::Dict{NTuple{N, S}, Array{T, N}}
@@ -582,6 +598,78 @@ function separateconnectors(
         end
     end
     Tensor{T, S, Nsep}(comps, Tuple(connectors), check = false)
+end
+
+
+function svd(
+    t::Tensor{T, S}, splitoff::Connector{S}...; maxblockdim::Int = typemax(Int)
+) where {T <: Number, S <: SymmetrySector}
+    remaining = setdiff(t.connectors, splitoff)
+    tmatrix, (combo_split, combo_remain) = mergeconnectors(t, splitoff, remaining)
+    Ucomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    Scomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    Vcomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    total = mergesectors(first(keys(tmatrix.components)), tmatrix.connectors)
+    for ((sector_split, sector_remain), block) in tmatrix.components
+        @assert total == mergesectors((sector_split, sector_remain), tmatrix.connectors)
+        F = svd!(block)
+        cutoff = min(length(F.S), maxblockdim)
+        Ucomps[(sector_split, sector_split)] = F.U[:, begin:cutoff]
+        Scomps[(sector_split, sector_split)] = Diagonal(F.S[begin:cutoff])
+        Vcomps[(sector_split, sector_remain)] = F.Vt[begin:cutoff, :]
+    end
+    Uconnector = replicate(combo_split.connector)
+    Vconnector = replicate(Uconnector)
+    Umatrix = Tensor(Ucomps, combo_split.connector, dual(Uconnector))
+    Stensor = Tensor(Scomps, Uconnector, dual(Vconnector))
+    Vmatrix = Tensor(Vcomps, Vconnector, combo_remain.connector)
+    Utensor = separateconnectors(Umatrix, combo_split)
+    Vtensor = separateconnectors(Vmatrix, combo_remain)
+    return Utensor, Stensor, Vtensor
+end
+
+function qr(
+    t::Tensor{T, S}, splitoff::Connector{S}...
+) where {T <: Number, S <: SymmetrySector}
+    remaining = setdiff(t.connectors, splitoff)
+    tmatrix, (combo_split, combo_remain) = mergeconnectors(t, splitoff, remaining)
+    Qcomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    Rcomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    total = mergesectors(first(keys(tmatrix.components)), tmatrix.connectors)
+    for ((sector_split, sector_remain), block) in tmatrix.components
+        @assert total == mergesectors((sector_split, sector_remain), tmatrix.connectors)
+        F = qr!(block)
+        Qcomps[(sector_split, sector_remain)] = F.Q
+        Rcomps[(sector_remain, sector_remain)] = F.R
+    end
+    connector = replicate(combo_split.connector)
+    Qmatrix = Tensor(Qcomps, combo_split.connector, dual(connector))
+    Rmatrix = Tensor(Rcomps, connector, combo_remain.connector)
+    Qtensor = separateconnectors(Qmatrix, combo_split)
+    Rtensor = separateconnectors(Rmatrix, combo_remain)
+    return Qtensor, Rtensor
+end
+
+function lq(
+    t::Tensor{T, S}, splitoff::Connector{S}...
+) where {T <: Number, S <: SymmetrySector}
+    remaining = setdiff(t.connectors, splitoff)
+    tmatrix, (combo_remain, combo_split) = mergeconnectors(t, remaining, splitoff)
+    Lcomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    Qcomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    total = mergesectors(first(keys(tmatrix.components)), tmatrix.connectors)
+    for ((sector_remain, sector_split), block) in tmatrix.components
+        @assert total == mergesectors((sector_split, sector_remain), tmatrix.connectors)
+        F = lq!(block)
+        Lcomps[(sector_remain, sector_remain)] = F.L
+        Qcomps[(sector_remain, sector_split)] = F.Q
+    end
+    connector = replicate(combo_split.connector)
+    Lmatrix = Tensor(Lcomps, combo_remain.connector, connector)
+    Qmatrix = Tensor(Qcomps, dual(connector), combo_split.connector)
+    Ltensor = separateconnectors(Lmatrix, combo_remain)
+    Qtensor = separateconnectors(Qmatrix, combo_split)
+    return Ltensor, Qtensor
 end
 
 end
