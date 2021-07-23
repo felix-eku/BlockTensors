@@ -312,37 +312,32 @@ function _map(
     return t
 end
 
-function Base.:+(a::Tensor{Ta}, b::Tb) where {Ta <: Number, Tb <: Number}
-    t = Tensor{promote_type(Ta, Tb)}(a)
-    for block in values(t.components)
-        block .+= b
-    end
-    return t
+for op = (:+, :-, :*)
+    eval(quote
+        function Base.$op(a::Tensor{Ta}, b::Tb) where {Ta <: Number, Tb <: Number}
+            t = Tensor{promote_type(Ta, Tb)}(a)
+            for block in values(t.components)
+                broadcast!($op, block, block, b)
+            end
+            return t
+        end
+        function Base.$op(a::Ta, b::Tensor{Tb}) where {Ta <: Number, Tb <: Number}
+            t = Tensor{promote_type(Ta, Tb)}(b)
+            for block in values(t.components)
+                broadcast!($op, block, a, block)
+            end
+            return t
+        end
+    end)
 end
-function Base.:+(a::Ta, b::Tensor{Tb}) where {Ta <: Number, Tb <: Number}
-    t = Tensor{promote_type(Ta, Tb)}(b)
-    for block in values(t.components)
-        broadcast!(+, block, a, block)
-    end
-    return t
+for op = (:+, :*)
+    eval(quote
+        Base.$op(a::Tensor, b::Number, bs::Number...) = $op(a, $op(b, bs...))
+    end)
 end
-Base.:+(a::Tensor, b::Number, bs::Number...) = a + (b + sum(bs))
+
 Base.:+(a::Tensor, bs::Tensor...) = _map(+, x -> x, a, bs...)
 
-function Base.:-(a::Tensor{Ta}, b::Tb) where {Ta <: Number, Tb <: Number}
-    t = Tensor{promote_type(Ta, Tb)}(a)
-    for block in values(t.components)
-        block .-= b
-    end
-    return t
-end
-function Base.:-(a::Ta, b::Tensor{Tb}) where {Ta <: Number, Tb <: Number}
-    t = Tensor{promote_type(Ta, Tb)}(b)
-    for block in values(t.components)
-        broadcast!(-, block, a, block)
-    end
-    return t
-end
 Base.:-(a::Tensor, b::Tensor) = _map(-, x -> -x, a, b)
 
 function _arrangecomps(
