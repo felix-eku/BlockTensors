@@ -40,6 +40,8 @@ function Base.isless(x::S, y::S) where S <: SymmetrySector
     end
 end
 
+Base.zero(::S) where S <: SymmetrySector = S()
+
 function Base.:+(x::S, ys::S...) where S <: SymmetrySector
     S(; 
         (

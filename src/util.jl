@@ -23,3 +23,14 @@ function Base.join(f, io::IO, xs, delim="")
         f(io, x)
     end
 end
+
+function allunique_sorted(xs)
+    local prev
+    for x in xs
+        if @isdefined prev
+            x ≠ prev || return false
+        end
+        prev = x
+    end
+    return true
+end
