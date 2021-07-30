@@ -52,13 +52,11 @@ end
 
 SymbolOrString = Union{Symbol, AbstractString}
 
-struct Space{S <: SymmetrySector}
+struct Space
     name::Symbol
     tags::Dict{Symbol, Any}
 end
-function Space{S}(name::SymbolOrString; tags...) where S <: SymmetrySector
-    Space{S}(Symbol(name), Dict(pairs(tags)))
-end
+Space(name::SymbolOrString; tags...) = Space(Symbol(name), Dict(pairs(tags)))
 
 function Base.getproperty(space::Space, name::Symbol)
     if name ≡ :name
@@ -74,22 +72,19 @@ function Base.propertynames(space::Space, private::Bool = false)
     private ? (:name, tags..., :tags) : (:name, tags...)
 end
 
-function Base.:(==)(a::Space{S}, b::Space{S}) where S <: SymmetrySector
-    a.name == b.name && a.tags == b.tags
-end
+Base.:(==)(a::Space, b::Space) = a.name == b.name && a.tags == b.tags
 
-function Base.hash(x::Space, h::UInt)
-    h = hash(typeof(x), h)
-    h = hash(x.name, h)
-    for tag in getfield(x, :tags)
+function Base.hash(space::Space, h::UInt)
+    h = hash(Space, h)
+    h = hash(space.name, h)
+    for tag in space.tags
         h ⊻= hash(tag)
     end
     return h
 end
 
 function Base.show(io::IO, space::Space)
-    T = typeof(space)
-    show(io, ifelse((:typeinfo => T) in io, Space, T))
+    show(io, Space)
     show(io, MIME"text/no-type"(), space)
 end
 
@@ -113,56 +108,51 @@ function Base.show(io::IO, ::MIME"text/plain", space::Space)
     end
 end
 
-function combine(spaces::Tuple{Space{S}, Vararg{Space{S}}}) where S <: SymmetrySector
-    Space{S}(
+function combine(spaces::Tuple{Space, Vararg{Space}})
+    Space(
         Symbol(unique(getfield.(spaces, :name))...),
         mergewith(union, getfield.(spaces, :tags)...)
     )
 end
-combine(spaces::Space{S}...) where S <: SymmetrySector = combine(spaces)
+combine(spaces::Space...) = combine(spaces)
 
 matching(x, match) = false
 matching(x) = Base.Fix1(matching, x)
 matching(x, matches::Tuple) = filter(matching(x), matches)
 
-function matching(x::Space{S}, match::Space{S}) where S <: SymmetrySector
-    x.name == match.name && all(x.tags) do (label, values)
+function matching(space::Space, match::Space)
+    space.name == match.name && all(space.tags) do (label, values)
         haskey(match.tags, label) && values ⊆ match.tags[label]
     end
 end
 
 
-abstract type Connector{S <: SymmetrySector} end
+abstract type Connector end
 
 for Connect = (:Incoming, :Outgoing)
     eval(quote
 
-    struct $Connect{S <: SymmetrySector} <: Connector{S}
-        space::Space{S}
+    struct $Connect <: Connector
+        space::Space
     end
-    function $Connect{S}(name::SymbolOrString; tags...) where S <: SymmetrySector
-        $Connect{S}(Space{S}(name; tags...))
-    end
-    $Connect(c::Connector{S}) where S <: SymmetrySector = $Connect{S}(c.space)
+    $Connect(name::SymbolOrString; tags...) = $Connect(Space(name; tags...))
+    $Connect(c::Connector) = $Connect(c.space)
 
     Base.:(==)(a::$Connect, b::$Connect) = a.space == b.space
 
-    function Base.show(io::IO, c::$Connect)
-        T = typeof(c)
-        show(io, ifelse((:typeinfo => T) in io, $Connect, T))
-        show(io, MIME"text/no-type"(), c.space)
-    end
-
-    function matching(x::$Connect{S}, match::$Connect{S}) where S <: SymmetrySector
-        matching(x.space, match.space)
-    end
+    matching(c::$Connect, match::$Connect) = matching(c.space, match.space)
     
     end)
 end
 
-Base.hash(x::Connector, h::UInt) = hash(x.space, hash(typeof(x), h))
+Base.hash(c::Connector, h::UInt) = hash(c.space, hash(typeof(c), h))
 
-matching(x::Space, match::Connector) = matching(x, match.space)
+matching(space::Space, match::Connector) = matching(space, match.space)
+
+function Base.show(io::IO, c::Connector)
+    show(io, typeof(c))
+    show(io, MIME"text/no-type"(), c.space)
+end
 
 function Base.show(io::IO, mime::MIME"text/plain", c::Connector)
     sep = get(io, :compact, false) ? "" : " "
@@ -175,31 +165,28 @@ direction_label(::Outgoing) = "out"
 dual(c::Incoming) = Outgoing(c)
 dual(c::Outgoing) = Incoming(c)
 
-function combine(
-    connectors::Tuple{Connector{S}, Vararg{Connector{S}}}
-) where S <: SymmetrySector
+function combine(connectors::Tuple{Connector, Vararg{Connector}})
     total_direction(connectors)(combine(getfield.(connectors, :space)))
 end
-combine(connectors::Connector{S}...) where S <: SymmetrySector = combine(connectors)
+combine(connectors::Connector...) = combine(connectors)
 
-function total_direction(
-    connectors::Tuple{Connector{S}, Vararg{Connector{S}}}
-) where S <: SymmetrySector
+function total_direction(connectors::Tuple{Connector, Vararg{Connector}})
     balance = sum(Int, connectors, init = 0)
-    balance == 0 ? typeof(first(connectors)) : Connector{S}(balance)
+    balance == 0 ? typeof(first(connectors)) : Connector(balance)
 end
 total_direction(connectors::Connector...) = total_direction(connectors)
 
 (::Type{T})(::Incoming) where {T <: Real} = -one(T)
 (::Type{T})(::Outgoing) where {T <: Real} = +one(T)
 
-Connector{S}(x::Real) where S <: SymmetrySector = x < 0 ? Incoming{S} : Outgoing{S}
+Connector(x::Real) = x < 0 ? Incoming : Outgoing
 
-combine(::Incoming{S}, sector::S) where S <: SymmetrySector = -sector
-combine(::Outgoing{S}, sector::S) where S <: SymmetrySector = sector
+
+combine(::Incoming, sector::SymmetrySector) = -sector
+combine(::Outgoing, sector::SymmetrySector) = sector
 
 function combine(
-    connectors::NTuple{N, Connector{S}}, sectors::NTuple{N, S}
+    connectors::NTuple{N, Connector}, sectors::NTuple{N, S}
 ) where {N, S <: SymmetrySector}
     mapreduce(combine, +, connectors, sectors, init=zero(S))
 end
@@ -207,25 +194,25 @@ end
 
 mutable struct UniqueToken end
 
-struct Leg{S <: SymmetrySector, C <: Connector{S}, Ls <: Tuple}
+struct Leg{S <: SymmetrySector, C <: Connector, Ls <: Tuple}
     token::UniqueToken
     connector::C
     dimensions::SectorDims{S}
     components::Ls
     function Leg(
         connector::C, dimensions::SectorDims{S}
-    ) where {S <: SymmetrySector, C <: Connector{S}}
+    ) where {S <: SymmetrySector, C <: Connector}
         new{S, C, Tuple{}}(UniqueToken(), connector, dimensions, ())
     end
     function Leg(
         connector::C, legs::Tuple{Leg{S}, Vararg{Leg{S}}}
-    ) where {S <: SymmetrySector, C <: Connector{S}}
+    ) where {S <: SymmetrySector, C <: Connector}
         dimensions = combine(getfield.(legs, :connector), getfield.(legs, :dimensions))
         new{S, C, typeof(legs)}(UniqueToken(), connector, dimensions, legs)
     end
     function Leg(
         leg::Leg{S, C, Ls}; dual::Bool = false
-    ) where {S <: SymmetrySector, C <: Connector{S}, Ls <: Tuple}
+    ) where {S <: SymmetrySector, C <: Connector, Ls <: Tuple}
         new{S, C, Ls}(
             leg.token, 
             dual ? dual(leg.connector) : leg.connector,
