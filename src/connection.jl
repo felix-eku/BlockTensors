@@ -254,6 +254,15 @@ struct Leg{S <: SymmetrySector, C <: Connector, N, Ls <: Tuple}
         )
     end
 end
+function Leg(legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where S <: SymmetrySector
+    Leg(identity, legs)
+end
+Leg(legs::Leg...) = Leg(identity, legs)
+function Leg(space::Space, legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where S <: SymmetrySector
+    Leg(_ -> space, legs)
+end
+Leg(space::Space, legs::Leg...) = Leg(space, legs)
+Leg(changespace, legs::Leg...) = Leg(changespace, legs)
 
 Base.hash(leg::Leg, h::UInt) = hash(leg.token, hash(typeof(leg), h))
 
