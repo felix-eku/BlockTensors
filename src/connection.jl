@@ -272,3 +272,31 @@ end
 matching(x::Union{Space, Connector}, match::Leg) = matching(x, match.connector)
 
 dual(leg::Leg) = Leg(leg, dual = true)
+
+function matchingpermutations(a::Tuple, b::Tuple; matchs = matching)
+    @assert allunique(a) "elements of a are not unique"
+    @assert allunique(b) "elements of b are not unique"
+    inds_a = collect(only(axes(a)))
+    inds_b = collect(only(axes(b)))
+    m = 1
+    @assert m == firstindex(inds_a) == firstindex(inds_b) "Array indices don't start at 1 ?!?"
+    for (i_a, k_a) in enumerate(inds_a)
+        c_a = a[k_a]
+        unmatched_b = @view inds_b[m:end]
+        for (i_b, k_b) in enumerate(unmatched_b)
+            c_b = b[k_b]
+            if matchs(c_b, c_a)
+                if i_a > m
+                    inds_a[m], inds_a[i_a] = inds_a[i_a], inds_a[m]
+                end
+                # index 1 in unmatched_b corresponds to index m in inds_b
+                if i_b > 1
+                    unmatched_b[1], unmatched_b[i_b] = unmatched_b[i_b], unmatched_b[1]
+                end
+                m += 1
+                break
+            end 
+        end
+    end 
+    return inds_a, inds_b, m - 1
+end
