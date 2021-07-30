@@ -1,10 +1,9 @@
-using Base: Integer
 using DataStructures
 
-struct SpaceDims{S <: SymmetrySector}
-    ranges::OrderedDict{S, UnitRange{Int}}
-    length::Int
-    function SpaceDims{S}(dimensions::AbstractVector{Pair{S, Int}}) where S <: SymmetrySector
+struct SectorDims{S <: SymmetrySector}
+    dims::OrderedDict{S, Int}
+    totaldim::Int
+    function SectorDims(dimensions::AbstractVector{Pair{S, Int}}) where S <: SymmetrySector
         sort!(dimensions, by = first)
         allunique_sorted(d.first for d in dimensions) || throw(
             ArgumentError("multiple dimensions for the same SymmetrySector")
@@ -12,52 +11,41 @@ struct SpaceDims{S <: SymmetrySector}
         all(dimension -> dimension.second > 0, dimensions) || throw(
             ArgumentError("negative dimension")
         )
-        length = 0
-        ranges = OrderedDict(s => (length + 1) : (length += dim) for (s, dim) in dimensions)
-        new(ranges, length)
+        new{S}(OrderedDict{S, Int}(dimensions), sum(getfield.(dimensions, :second)))
     end
 end
-function SpaceDims(dimensions)
+function SectorDims(dimensions)
     P = eltype(dimensions)
     P <: Pair || throw(ArgumentError("dimensions should be a collection of Pairs"))
     S = P.parameters[1]
-    SpaceDims{S}(collect(Pair{S, Int}, dimensions))
+    SectorDims(collect(Pair{S, Int}, dimensions))
 end
-SpaceDims(dimensions::Pair...) = SpaceDims(dimensions)
+SectorDims(dimensions::Pair...) = SectorDims(dimensions)
 
+Base.getindex(d::SectorDims{S}, s::S) where S <: SymmetrySector = d.dims[s]
 
-function Base.propertynames(::SpaceDims, private::Bool = false)
-    private ? (:length, :ranges) : tuple(:length)
-end
+Base.iterate(d::SectorDims) = iterate(d.dims)
+Base.iterate(d::SectorDims, state) = iterate(d.dims, state)
 
-Base.getindex(dims::SpaceDims{S}, s::S) where S <: SymmetrySector = dims.ranges[s]
-
-function Base.:(==)(a::SpaceDims{S}, b::SpaceDims{S}) where S <: SymmetrySector
-    a.ranges == b.ranges || return false
-    @assert a.length == b.length
+function Base.:(==)(a::SectorDims{S}, b::SectorDims{S}) where S <: SymmetrySector
+    a.dims == b.dims || return false
+    @assert a.totaldim == b.totaldim
     return true
 end
 
-function Base.hash(x::SpaceDims, h::UInt)
-    h = hash(typeof(x), h)
-    for r in x.ranges
+function Base.hash(d::SectorDims, h::UInt)
+    h = hash(typeof(d), h)
+    for r in d.dims
         h = hash(r, h)
     end
     return h
 end
 
-function Base.show(io::IO, dims::SpaceDims)
-    T = typeof(dims)
-    show(io, ifelse((:typeinfo => T) in io || !isempty(dims.ranges), SpaceDims, T))
+function Base.show(io::IO, d::SectorDims)
+    T = typeof(d)
+    show(io, ifelse((:typeinfo => T) in io || !isempty(d.dims), SectorDims, T))
     print(io, "(")
-    join(io, (s => length(r) for (s, r) in dims.ranges), ", ")
-    print(io, ")")
-end
-
-function Base.print(io::IO, dims::SpaceDims)
-    show(io, SpaceDims)
-    print(io, "(")
-    join(io, pairs(dims.ranges), ", ")
+    join(io, d.dims, ", ")
     print(io, ")")
 end
 
@@ -222,10 +210,10 @@ mutable struct UniqueToken end
 struct Leg{S <: SymmetrySector, C <: Connector{S}, Ls <: Tuple}
     token::UniqueToken
     connector::C
-    dimensions::SpaceDims{S}
+    dimensions::SectorDims{S}
     components::Ls
     function Leg(
-        connector::C, dimensions::SpaceDims{S}
+        connector::C, dimensions::SectorDims{S}
     ) where {S <: SymmetrySector, C <: Connector{S}}
         new{S, C, Tuple{}}(UniqueToken(), connector, dimensions, ())
     end
