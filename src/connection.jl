@@ -192,31 +192,65 @@ function combine(
 end
 
 
+Arrangement{N, S} = Dict{NTuple{N, S}, Tuple{S, UnitRange{Int}}}
+function combine(
+    connectors::NTuple{N, Connector}, dims::NTuple{N, SectorDims{S}}
+) where {N, S <: SymmetrySector}
+    combconnector = combine(connectors)
+    CombinedDims = Vector{Pair{NTuple{N, S}, Int}}
+    combs = DefaultDict{S, CombinedDims}(CombinedDims)
+    for sector_dim_pairs in Iterators.product(dims)
+        sectors, dims = zip(sector_dim_pairs)
+        combsector = combine(combconnector, combine(connectors, sectors))
+        push!(totals[combsector], sectors => prod(dims))
+    end
+    totaldims = Vector{S, Int}
+    sizehint!(totaldims, length(combs))
+    arrangement = Arrangement{N, S}()
+    sizehint!(arrangement, sum(length, values(combs)))
+    for (combsector, combdims) in combs
+        totaldim = 0
+        merge!(arrangement, (
+                combsector, (totaldim + 1) : (totaldim += dim) 
+                for (sectors, dim) in combdims
+            )
+        )
+        push!(totaldims, combsector => totaldim)
+    end
+    return combconnector, SectorDims(totaldims), arrangement
+end
+
+
 mutable struct UniqueToken end
 
-struct Leg{S <: SymmetrySector, C <: Connector, Ls <: Tuple}
+struct Leg{S <: SymmetrySector, C <: Connector, N, Ls <: Tuple}
     token::UniqueToken
     connector::C
     dimensions::SectorDims{S}
     components::Ls
+    arrangement::Arrangement{N, S}
     function Leg(
         connector::C, dimensions::SectorDims{S}
     ) where {S <: SymmetrySector, C <: Connector}
-        new{S, C, Tuple{}}(UniqueToken(), connector, dimensions, ())
+        new{S, C, 0, Tuple{}}(UniqueToken(), connector, dimensions, (), Arrangement{0, S}())
+    end
+    function Leg(changespace, legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where {S <: SymmetrySector}
+        connector, dimensions, arrangement = combine(
+            getfield.(legs, :connector), getfield.(legs, :dimensions)
+        )
+        C = typeof(connector)
+        connector = C(changespace(connector.space))
+        new{S, C, length(legs), typeof(legs)}(
+            UniqueToken(), connector, dimensions, legs, arrangement
+        )
     end
     function Leg(
-        connector::C, legs::Tuple{Leg{S}, Vararg{Leg{S}}}
-    ) where {S <: SymmetrySector, C <: Connector}
-        dimensions = combine(getfield.(legs, :connector), getfield.(legs, :dimensions))
-        new{S, C, typeof(legs)}(UniqueToken(), connector, dimensions, legs)
-    end
-    function Leg(
-        leg::Leg{S, C, Ls}; dual::Bool = false
+        leg::Leg{S, C, N, Ls}; dual::Bool = false
     ) where {S <: SymmetrySector, C <: Connector, Ls <: Tuple}
-        new{S, C, Ls}(
+        new{S, C, N, Ls}(
             leg.token, 
             dual ? dual(leg.connector) : leg.connector,
-            leg.dimensions, leg.components
+            leg.dimensions, leg.components, leg.arrangement
         )
     end
 end
