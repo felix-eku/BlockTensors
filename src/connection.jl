@@ -23,6 +23,8 @@ end
 SectorDims(dimensions::Pair...) = SectorDims(dimensions)
 
 Base.getindex(d::SectorDims{S}, s::S) where S <: SymmetrySector = d.dims[s]
+Base.get(default, d::SectorDims{S}, s::S) where S <: SymmetrySector = get(default, d.dims, s)
+Base.get(d::SectorDims{S}, s::S, default) where S <: SymmetrySector = get(d.dims, s, default)
 
 Base.iterate(d::SectorDims) = iterate(d.dims)
 Base.iterate(d::SectorDims, state) = iterate(d.dims, state)
