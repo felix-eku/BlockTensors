@@ -266,6 +266,12 @@ end
 Leg(space::Space, legs::Leg...) = Leg(space, legs)
 Leg(changespace, legs::Leg...) = Leg(changespace, legs)
 
+function Leg(leg::Leg{S}, dimensions::SectorDims{S}) where S <: SymmetrySector
+    leg.dimensions == dimensions ||
+        throw(ArgumentError("Leg has different dimensions than specified"))
+    return leg
+end
+
 Base.hash(leg::Leg, h::UInt) = hash(leg.token, hash(typeof(leg), h))
 
 function Base.:(==)(a::Leg, b::Leg)
