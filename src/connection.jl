@@ -284,6 +284,27 @@ matching(x::Union{Space, Connector}, match::Leg) = matching(x, match.connector)
 
 dual(leg::Leg) = Leg(leg, dual = true)
 
+function Base.show(io::IO, leg::Leg{S, C, 0}) where {S <: SymmetrySector, C <: Connector}
+    show(io, Leg)
+    print(io, "(")
+    show(io, leg.connector)
+    print(io, ", ")
+    show(io, leg.dimensions)
+    print(io, ")")
+end
+
+function Base.show(io::IO, leg::Leg)
+    show(io, Leg)
+    print(io, "(")
+    show(io, leg.connector.space)
+    print(io, ", ")
+    show(io, leg.legs)
+    print(io, ")")
+end
+
+Base.show(io::IO, mime::MIME"text/plain", leg::Leg) = show(io, mime, leg.connector)
+
+
 function matchingpermutations(a::Tuple, b::Tuple; matchs = matching)
     @assert allunique(a) "elements of a are not unique"
     @assert allunique(b) "elements of b are not unique"
