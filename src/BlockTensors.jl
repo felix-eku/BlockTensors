@@ -5,7 +5,7 @@ using LinearAlgebra
 using DataStructures
 
 export SymmetrySector, Trivial, @SymmetrySector
-export Space, Connector, SectorDims, Leg, LegLike
+export Space, Connector, Incoming, Outgoing, SectorDims, Leg, LegLike
 export dual, matching, matchingpermutations, combine
 export Tensor, mergelegs, separatelegs, svd, qr, lq
 
