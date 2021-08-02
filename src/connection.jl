@@ -167,6 +167,10 @@ direction_label(::Outgoing) = "out"
 dual(c::Incoming) = Outgoing(c)
 dual(c::Outgoing) = Incoming(c)
 
+dual(a::Outgoing, b::Incoming) = a.space == b.space
+dual(a::Incoming, b::Outgoing) = a.space == b.space
+dual(::Connector, ::Connector) = false
+
 function combine(connectors::Tuple{Connector, Vararg{Connector}})
     total_direction(connectors)(combine(getfield.(connectors, :space)))
 end
@@ -247,10 +251,10 @@ struct Leg{S <: SymmetrySector, C <: Connector, N, Ls <: Tuple}
         )
     end
     function Leg(
-        leg::Leg{S, C, N, Ls}; dual::Bool = false
+        leg::Leg{S, C, N, Ls}; dual::Bool = false, keep_token::Bool = false
     ) where {S <: SymmetrySector, C <: Connector, Ls <: Tuple}
         new{S, C, N, Ls}(
-            leg.token, 
+            keep_token ? leg.token : UniqueToken(),
             dual ? dual(leg.connector) : leg.connector,
             leg.dimensions, leg.components, leg.arrangement
         )
@@ -272,23 +276,35 @@ function Leg(leg::Leg{S}, dimensions::SectorDims{S}) where S <: SymmetrySector
     return leg
 end
 
-Base.hash(leg::Leg, h::UInt) = hash(leg.token, hash(typeof(leg), h))
-
 function Base.:(==)(a::Leg, b::Leg)
-    a.token == b.token && a.connector == b.connector || return false
-    @assert a.dimensions == b.dimensions && a.components == b.components
-    return true
+    a.connector == b.connector &&
+        a.dimensions == b.dimensions && a.components == b.components || return false
+    @assert a.arrangement == b.arrangement
+
+end
+
+function Base.hash(leg::Leg, h::UInt)
+    h = hash(leg.connector, h)
+    h = hash(leg.dimensions, h)
+    h = hash(leg.components, h)
+    return h
 end
 
 function matching(a::Leg, b::Leg)
-    a.token == b.token && a.connector == dual(b.connector) || return false
-    @assert a.dimensions == b.dimensions && a.components == b.components
+    a.token == b.token && a.connector == b.connector || return false
+    @assert a.dimensions == b.dimensions && 
+        a.components == b.components && a.arrangement == b.arrangement
     return true
 end
-
 matching(x::Union{Space, Connector}, match::Leg) = matching(x, match.connector)
 
-dual(leg::Leg) = Leg(leg, dual = true)
+dual(leg::Leg) = Leg(leg, dual = true, keep_token = true)
+function dual(a::Leg, b::Leg)
+    a.token == b.token && a.connector == dual(b.connector) || return false
+    @assert a.dimensions == b.dimensions && 
+        a.components == b.components && a.arrangement == b.arrangement
+    return true
+end
 
 function Base.show(io::IO, leg::Leg{S, C, 0}) where {S <: SymmetrySector, C <: Connector}
     show(io, Leg)
