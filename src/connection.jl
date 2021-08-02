@@ -327,6 +327,16 @@ end
 Base.show(io::IO, mime::MIME"text/plain", leg::Leg) = show(io, mime, leg.connector)
 
 
+function invertarrangement(arrangement::Arrangement{S, N}) where {S <: SymmetrySector, N}
+    RangeSectorVector = Vector{Pair{UnitRange{Int}, NTuple{N, S}}}
+    rangesectors = DefaultDict{S, RangeSectorVector}(RangeSectorVector)
+    for (sectors, (sector, range)) in arrangement
+        push!(rangesectors[sector], range => sectors)
+    end
+    return rangesectors
+end
+
+
 function matchingpermutations(a::Tuple, b::Tuple; matchs = matching)
     perm_a = collect(only(axes(a)))
     perm_b = collect(only(axes(b)))
