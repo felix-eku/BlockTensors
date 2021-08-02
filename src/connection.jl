@@ -143,7 +143,7 @@ for Connect = (:Incoming, :Outgoing)
     Base.:(==)(a::$Connect, b::$Connect) = a.space == b.space
 
     matching(c::$Connect, match::$Connect) = matching(c.space, match.space)
-    
+
     end)
 end
 
@@ -217,7 +217,7 @@ function combine(
     for (combsector, combdims) in combs
         totaldim = 0
         merge!(arrangement, (
-                combsector, (totaldim + 1) : (totaldim += dim) 
+                combsector, (totaldim + 1) : (totaldim += dim)
                 for (sectors, dim) in combdims
             )
         )
@@ -328,20 +328,18 @@ Base.show(io::IO, mime::MIME"text/plain", leg::Leg) = show(io, mime, leg.connect
 
 
 function matchingpermutations(a::Tuple, b::Tuple; matchs = matching)
-    @assert allunique(a) "elements of a are not unique"
-    @assert allunique(b) "elements of b are not unique"
-    inds_a = collect(only(axes(a)))
-    inds_b = collect(only(axes(b)))
+    perm_a = collect(only(axes(a)))
+    perm_b = collect(only(axes(b)))
     m = 1
-    @assert m == firstindex(inds_a) == firstindex(inds_b) "Array indices don't start at 1 ?!?"
-    for (i_a, k_a) in enumerate(inds_a)
+    @assert m == firstindex(perm_a) == firstindex(perm_b) "array indices don't start at 1 ?!?"
+    for (i_a, k_a) in enumerate(perm_a)
         c_a = a[k_a]
-        unmatched_b = @view inds_b[m:end]
+        unmatched_b = @view perm_b[m:end]
         for (i_b, k_b) in enumerate(unmatched_b)
             c_b = b[k_b]
             if matchs(c_b, c_a)
                 if i_a > m
-                    inds_a[m], inds_a[i_a] = inds_a[i_a], inds_a[m]
+                    perm_a[m], perm_a[i_a] = perm_a[i_a], perm_a[m]
                 end
                 # index 1 in unmatched_b corresponds to index m in inds_b
                 if i_b > 1
@@ -349,8 +347,8 @@ function matchingpermutations(a::Tuple, b::Tuple; matchs = matching)
                 end
                 m += 1
                 break
-            end 
+            end
         end
-    end 
-    return inds_a, inds_b, m - 1
+    end
+    return perm_a, perm_b, m - 1
 end
