@@ -1,5 +1,3 @@
-using DataStructures
-
 struct SectorDims{S <: SymmetrySector}
     dims::OrderedDict{S, Int}
     totaldim::Int
