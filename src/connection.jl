@@ -57,6 +57,9 @@ struct Space
     tags::Dict{Symbol, Any}
 end
 Space(name::SymbolOrString; tags...) = Space(Symbol(name), Dict(pairs(tags)))
+function Space(space::Space; extratags...)
+    Space(space.name, mergewith(union, space.tags, pairs(extratags)))
+end
 
 function Base.getproperty(space::Space, name::Symbol)
     if name ≡ :name
@@ -137,6 +140,8 @@ for Connect = (:Incoming, :Outgoing)
     end
     $Connect(name::SymbolOrString; tags...) = $Connect(Space(name; tags...))
     $Connect(c::Connector) = $Connect(c.space)
+
+    Connector(c::$Connect; extratags...) = $Connect(Space(c.space; extratags...))
 
     Base.:(==)(a::$Connect, b::$Connect) = a.space == b.space
 
