@@ -8,7 +8,7 @@ function buildsectordims(
     for (sectors, block) in components 
         blocksize = size(block)
         for k = 1:N
-            dim == get!(dims[k], sectors[k], blocksize[k]) || throw(
+            blocksize[k] == get!(dims[k], sectors[k], blocksize[k]) || throw(
                 DimensionMismatch("multiple dimensions for sector $(sectors[k]) of leg $k")
             )
         end
