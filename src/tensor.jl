@@ -145,7 +145,7 @@ function Base.getindex(
     return PermutedDimsArray(t.components[sectors[perm]], invperm(perm))[inds...]
 end
 
-matching(x::Union{Leg, Connector, Space}, match::Tensor) = matching(x, t.legs)
+matching(x::Union{Leg, Connector, Space}, match::Tensor) = matching(x, match.legs)
 
 
 function _map(
