@@ -94,6 +94,14 @@ function Tensor{T}(
     Tensor{T}(Dict(sectors => convert(Array{T, N}, components)), legs)
 end
 
+function Base.adjoint(t::Tensor{T}) where T <: Number
+    Tensor(
+        Dict(sectors => conj(block) for (sectors, block) in t.components),
+        adjoint.(t.legs),
+        check = false
+    )
+end
+
 
 rank(::Tensor{T, S, N}) where {T <: Number, S <: SymmetrySector, N} = N
 
