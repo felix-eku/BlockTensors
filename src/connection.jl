@@ -249,12 +249,14 @@ struct Leg{S <: SymmetrySector, C <: Connector, N, Ls <: Tuple}
         )
     end
     function Leg(
-        leg::Leg{S, C, N, Ls}; dual::Bool = false, keep_token::Bool = false
-    ) where {S <: SymmetrySector, C <: Connector, Ls <: Tuple}
+        leg::Leg{S, C, N, Ls}; dualconnector::Bool = false, keeptoken::Bool = false
+    ) where {S <: SymmetrySector, C <: Connector, N, Ls <: Tuple}
         new{S, C, N, Ls}(
-            keep_token ? leg.token : UniqueToken(),
-            dual ? dual(leg.connector) : leg.connector,
-            leg.dimensions, leg.components, leg.arrangement
+            keeptoken ? leg.token : UniqueToken(),
+            dualconnector ? dual(leg.connector) : leg.connector,
+            leg.dimensions, 
+            dualconnector ? dual.(leg.components) : leg.components, 
+            leg.arrangement
         )
     end
 end
@@ -296,7 +298,7 @@ function matching(a::Leg, b::Leg)
 end
 matching(x::Union{Space, Connector}, match::Leg) = matching(x, match.connector)
 
-dual(leg::Leg) = Leg(leg, dual = true, keep_token = true)
+dual(leg::Leg) = Leg(leg, dualconnector = true, keeptoken = true)
 function dual(a::Leg, b::Leg)
     a.token == b.token && a.connector == dual(b.connector) || return false
     @assert a.dimensions == b.dimensions && 
