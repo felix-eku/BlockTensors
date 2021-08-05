@@ -258,7 +258,7 @@ function Base.:*(
     arrangement = _arrangecomponents(a.components, Tuple(inner_a), Tuple(outer_a))
     T, N, comps = _multiplyblocks(arrangement, b.components, Tuple(inner_b), Tuple(outer_b))
     legs = tuple(a.legs[outer_a]..., b.legs[outer_b]...)
-    return Tensor{T, S, N}(comps, legs, check = false)
+    return Tensor{T}(comps, legs, check = false)
 end
 
 
@@ -301,7 +301,7 @@ function mergelegs(
         fullblock[ranges...] = mergedblock
     end
     legs = tuple(mergedlegs..., t.legs[perm[keep]]...)
-    return Tensor{T, S, N}(comps, legs, check = false)
+    return Tensor{T}(comps, legs, check = false)
 end
 
 
@@ -352,7 +352,7 @@ function separatelegs(
     for (k, range) in pairs(separated)
         seplegs[range] .= legs[k].components
     end
-    Tensor{T, S, Nsep}(comps, Tuple(seplegs), check = false)
+    Tensor{T}(comps, Tuple(seplegs), check = false)
 end
 
 
