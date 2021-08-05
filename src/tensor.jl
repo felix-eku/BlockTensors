@@ -37,7 +37,7 @@ struct Tensor{T <: Number, S <: SymmetrySector, N}
     ) where {T <: Number, S <: SymmetrySector, N}
         if check
             for (sectors, block) in components
-                checkblockdims(legs, size(block), sectors)
+                checkblockdims(legs, sectors, size(block))
             end
         end
         new{T, S, N}(components, legs)
@@ -160,7 +160,7 @@ function _map(
             block_b = PermutedDimsArray(block_b, perm)
             block = get(t.components, sectors, nothing)
             if block ≡ nothing
-                checkblockdims(t.legs, size(block_b), sectors)
+                checkblockdims(t.legs, sectors, size(block_b))
                 t.components[sectors] = f_unary(block_b)
             else
                 broadcast!(f_binary, block, block, block_b)
