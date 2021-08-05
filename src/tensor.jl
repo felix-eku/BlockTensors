@@ -31,7 +31,7 @@ end
 struct Tensor{T <: Number, S <: SymmetrySector, N} 
     components::Dict{NTuple{N, S}, Array{T, N}}
     legs::NTuple{N, Leg{S}}
-    function Tensor(
+    function Tensor{T}(
         components::Dict{NTuple{N, S}, Array{T, N}}, legs::NTuple{N, Leg{S}};
         check::Bool = true
     ) where {T <: Number, S <: SymmetrySector, N}
@@ -46,7 +46,7 @@ end
 function Tensor{T}(
     t::Tensor{Tprime, S, N}
 ) where {T <: Number, Tprime <: Number, S <: SymmetrySector, N}
-    Tensor(
+    Tensor{T}(
         Dict(sector => Array{T, N}(block) for (sector, block) in t.components), 
         t.legs, check = false
     )
@@ -54,12 +54,12 @@ end
 Tensor(t::Tensor{T}) where T <: Number = Tensor{T}(t)
 
 LegLike{S <: SymmetrySector} = Union{Leg{S}, <:Connector}
-function Tensor(
+function Tensor{T}(
     components::Dict{NTuple{N, S}, Array{T, N}}, legs::NTuple{N, LegLike{S}}
 ) where {T <: Number, S <: SymmetrySector, N}
     dims = buildsectordims(components)
     legs = Tuple(map(Leg, legs, dims))
-    Tensor(components, legs, check = false)
+    Tensor{T}(components, legs, check = false)
 end
 Components{T <: Number, S <: SymmetrySector, N} = Union{
     AbstractDict{NTuple{N, S}, <:AbstractArray{T, N}}, AbstractArray{T, N}
@@ -84,14 +84,14 @@ function Tensor{T}(
     components::AbstractDict{NTuple{N, S}, <:AbstractArray{Tprime, N}},
     legs::NTuple{N, LegLike{S}}
 ) where {T <: Number, Tprime <: Number, S <: SymmetrySector, N}
-    Tensor(convert(Dict{NTuple{N, S}, Array{T, N}}, components), legs)
+    Tensor{T}(convert(Dict{NTuple{N, S}, Array{T, N}}, components), legs)
 end
 function Tensor{T}(
     components::AbstractArray{Tprime, N}, 
     legs::NTuple{N, Leg{Trivial}}
 ) where {T <: Number, Tprime <: Number, N}
     sectors = ntuple(_ -> Trivial(), Val(N))
-    Tensor(Dict(sectors => convert(Array{T, N}, components)), legs)
+    Tensor{T}(Dict(sectors => convert(Array{T, N}, components)), legs)
 end
 
 
