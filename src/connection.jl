@@ -61,6 +61,8 @@ function Space(space::Space; extratags...)
     Space(space.name, mergewith(union, space.tags, pairs(extratags)))
 end
 
+addtags!(space::Space; tags...) = mergewith!(union, space.tags, pairs(tags))
+
 function Base.getproperty(space::Space, name::Symbol)
     if name ≡ :name
         getfield(space, :name)
@@ -190,6 +192,8 @@ total_direction(connectors::Connector...) = total_direction(connectors)
 
 Connector(x::Real) = x < 0 ? Incoming : Outgoing
 
+addtags!(c::Connector; tags...) = addtags!(c.space, tags...)
+
 
 combine(::Incoming, sector::SymmetrySector) = -sector
 combine(::Outgoing, sector::SymmetrySector) = sector
@@ -303,10 +307,7 @@ function Leg(leg::Leg{S}, dimensions::SectorDims{S}) where S <: SymmetrySector
     return leg
 end
 
-function Base.:(==)(a::Leg, b::Leg)
-    a.connector == b.connector &&
-        a.dimensions == b.dimensions && a.components == b.components || return false
-    @assert a.arrangement == b.arrangement
+addtags!(x::Leg; tags...) = addtags!(x.connector.space; tags...)
 
 function connect!(a::Leg, b::Leg)
     @assert a.connection == b.connection == 0 && 
