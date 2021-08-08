@@ -230,40 +230,62 @@ function combine(
 end
 
 
-mutable struct UniqueToken end
+module ConnectionIds
 
-struct Leg{S <: SymmetrySector, C <: Connector, N, Ls <: Tuple}
-    token::UniqueToken
+export ConnectionId, nextid
+
+maxid = UInt(0)
+
+mutable struct ConnectionId
+    id::UInt
+    ConnectionId() = new(UInt(0))
+end
+function ConnectionId(id::UInt)
+    x = ConnectionId()
+    x.id = id
+    return x
+end
+
+function Base.setproperty!(x::ConnectionId, name::Symbol, id::UInt)
+    name ≡ :id || throw(ErrorException("type ConnectionId has no field $name"))
+    global maxid = max(maxid::UInt, id)
+    setfield!(x, name, id)
+end
+function Base.setproperty!(x::ConnectionId, name::Symbol, id::Integer)
+    setproperty!(x, name, convert(UInt, id))
+end
+
+nextid() = maxid::UInt + 1
+
+end
+
+
+using .ConnectionIds
+
+struct Leg{S <: SymmetrySector, C <: Connector, Ls <: Tuple, N}
+    connection::ConnectionId
     connector::C
     dimensions::SectorDims{S}
     components::Ls
     arrangement::Arrangement{N, S}
     function Leg(
-        connector::C, dimensions::SectorDims{S}
-    ) where {S <: SymmetrySector, C <: Connector}
-        new{S, C, 0, Tuple{}}(UniqueToken(), connector, dimensions, (), Arrangement{0, S}())
-    end
-    function Leg(changespace, legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where {S <: SymmetrySector}
-        connector, dimensions, arrangement = combine(
-            getfield.(legs, :connector), getfield.(legs, :dimensions)
-        )
-        C = typeof(connector)
-        connector = C(changespace(connector.space))
-        new{S, C, length(legs), typeof(legs)}(
-            UniqueToken(), connector, dimensions, legs, arrangement
+        connection::ConnectionId, connector::C, dimensions::SectorDims{S}, 
+        components::NTuple{N, Leg{S}}, arrangement::Arrangement{N, S}
+    ) where {S <: SymmetrySector, C <: Connector, N}
+        new{S, C, typeof(components), N}(
+            connection, connector, dimensions, components, arrangement
         )
     end
-    function Leg(
-        leg::Leg{S, C, N, Ls}; dualconnector::Bool = false, keeptoken::Bool = false
-    ) where {S <: SymmetrySector, C <: Connector, N, Ls <: Tuple}
-        new{S, C, N, Ls}(
-            keeptoken ? leg.token : UniqueToken(),
-            dualconnector ? dual(leg.connector) : leg.connector,
-            leg.dimensions, 
-            dualconnector ? dual.(leg.components) : leg.components, 
-            leg.arrangement
-        )
-    end
+end
+function Leg(connector::Connector, dimensions::SectorDims{S}) where S <: SymmetrySector
+    Leg(ConnectionId(), connector, dimensions, (), Arrangement{0, S}())
+end
+function Leg(changespace, legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where S <: SymmetrySector
+    connector, dimensions, arrangement = combine(
+        getfield.(legs, :connector), getfield.(legs, :dimensions)
+    )
+    connector = typeof(connector)(changespace(connector.space))
+    Leg(ConnectionId(), connector, dimensions, legs, arrangement)
 end
 function Leg(legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where S <: SymmetrySector
     Leg(identity, legs)
@@ -286,7 +308,13 @@ function Base.:(==)(a::Leg, b::Leg)
         a.dimensions == b.dimensions && a.components == b.components || return false
     @assert a.arrangement == b.arrangement
 
+function connect!(a::Leg, b::Leg)
+    @assert a.connection == b.connection == 0 && 
+        a.connector == dual(b.connector) && a.dimensions == b.dimensions
+    id = nextid()
+    a.connection.id = b.connection.id = id
 end
+
 
 function Base.hash(leg::Leg, h::UInt)
     h = hash(leg.connector, h)
@@ -295,21 +323,34 @@ function Base.hash(leg::Leg, h::UInt)
     return h
 end
 
-function matching(a::Leg, b::Leg)
-    a.token == b.token && a.connector == b.connector || return false
-    @assert a.dimensions == b.dimensions && 
-        a.components == b.components && a.arrangement == b.arrangement
+function Base.:(==)(a::Leg, b::Leg)
+    a.connector == b.connector &&
+        a.dimensions == b.dimensions && a.components == b.components || return false
+    @assert a.arrangement == b.arrangement
     return true
 end
+
+matching(a::Leg, b::Leg) = a == b
 matching(x::Union{Space, Connector}, match::Leg) = matching(x, match.connector)
 
-dual(leg::Leg) = Leg(leg, dualconnector = true, keeptoken = true)
+dual(leg::Leg; connected::Bool = false) = Leg(
+    connected ? leg.connection : ConnectionId(),
+    dual(leg.connector), leg.dimensions, 
+    dual.(leg.components), leg.arrangement
+)
+
 function dual(a::Leg, b::Leg)
-    a.token == b.token && a.connector == dual(b.connector) || return false
-    @assert a.dimensions == b.dimensions && 
-        a.components == b.components && a.arrangement == b.arrangement
+    a.connection == b.connection && a.connector == dual(b.connector) || return false
+    if a.connection == 0
+        all(dual.(a.components, b.components)) || return false
+        connect!(a, b)
+    else
+        @assert all(dual.(a.components, b.components))
+    end
+    @assert a.dimensions == b.dimensions && a.arrangement == b.arrangement
     return true
 end
+
 
 function Base.show(io::IO, leg::Leg{S, C, 0}) where {S <: SymmetrySector, C <: Connector}
     show(io, Leg)
