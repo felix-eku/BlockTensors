@@ -365,7 +365,7 @@ function Base.show(io::IO, leg::Leg)
     print(io, "(")
     show(io, leg.connector.space)
     print(io, ", ")
-    show(io, leg.legs)
+    show(io, leg.components)
     print(io, ")")
 end
 
