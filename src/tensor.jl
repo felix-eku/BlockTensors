@@ -5,7 +5,7 @@ function buildsectordims(
     for dict in dims
         sizehint!(dict, length(components))
     end
-    for (sectors, block) in components 
+    for (sectors, block) in components
         blocksize = size(block)
         for k = 1:N
             blocksize[k] == get!(dims[k], sectors[k], blocksize[k]) || throw(
@@ -28,7 +28,7 @@ function checkblockdims(
     end
 end
 
-struct Tensor{T <: Number, S <: SymmetrySector, N} 
+struct Tensor{T <: Number, S <: SymmetrySector, N}
     components::Dict{NTuple{N, S}, Array{T, N}}
     legs::NTuple{N, Leg{S}}
     function Tensor{T}(
@@ -50,7 +50,7 @@ function Tensor{T}(
     t::Tensor{Tprime, S, N}
 ) where {T <: Number, Tprime <: Number, S <: SymmetrySector, N}
     Tensor{T}(
-        Dict(sector => Array{T, N}(block) for (sector, block) in t.components), 
+        Dict(sector => Array{T, N}(block) for (sector, block) in t.components),
         t.legs, check = false
     )
 end
@@ -90,7 +90,7 @@ function Tensor{T}(
     Tensor{T}(convert(Dict{NTuple{N, S}, Array{T, N}}, components), legs)
 end
 function Tensor{T}(
-    components::AbstractArray{Tprime, N}, 
+    components::AbstractArray{Tprime, N},
     legs::NTuple{N, Leg{Trivial}}
 ) where {T <: Number, Tprime <: Number, N}
     sectors = ntuple(_ -> Trivial(), Val(N))
@@ -201,8 +201,8 @@ Base.:+(a::Tensor, bs::Tensor...) = _map(+, x -> x, a, bs...)
 Base.:-(a::Tensor, b::Tensor) = _map(-, x -> -x, a, b)
 
 function _arrangecomponents(
-    comps::Dict{NTuple{N, S}, Array{T, N}}, 
-    inner::NTuple{M, Int}, 
+    comps::Dict{NTuple{N, S}, Array{T, N}},
+    inner::NTuple{M, Int},
     outer::NTuple{NminusM, Int}
 ) where {T <: Number, S <: SymmetrySector, N, M, NminusM}
     @assert N == M + NminusM
@@ -221,7 +221,7 @@ function _multiplyblocks(
     arrangement::DefaultDict{NTuple{M, S}, Vector{Pair{NTuple{Nleft, S}, Array{Ta, Na}}}},
     components::Dict{NTuple{Nb, S}, Array{Tb, Nb}},
     inner::NTuple{M, Int},
-    outer::NTuple{Nright, Int}, 
+    outer::NTuple{Nright, Int},
 ) where {Ta <: Number, Tb <: Number, S <: SymmetrySector, M, Na, Nb, Nleft, Nright}
     @assert Na == Nleft + M
     @assert Nb == Nright + M
@@ -247,7 +247,7 @@ function _multiplyblocks(
             end
         end
     end
-    return T, N, comps
+    return T, comps
 end
 
 function Base.:*(
@@ -259,7 +259,7 @@ function Base.:*(
     outer_b = @view inds_b[begin + m : end]
     inner_b = @view inds_b[begin : begin + m - 1]
     arrangement = _arrangecomponents(a.components, Tuple(inner_a), Tuple(outer_a))
-    T, N, comps = _multiplyblocks(arrangement, b.components, Tuple(inner_b), Tuple(outer_b))
+    T, comps = _multiplyblocks(arrangement, b.components, Tuple(inner_b), Tuple(outer_b))
     legs = tuple(a.legs[outer_a]..., b.legs[outer_b]...)
     return Tensor{T}(comps, legs, check = false)
 end
