@@ -161,6 +161,11 @@ end
 matching(x::Union{Leg, Connector, Space}, match::Tensor) = matching(x, match.legs)
 
 
+function prune!(t::Tensor)
+    filter!(sectors_block -> !iszero(sectors_block.second), t.components)
+    return nothing
+end
+
 function _map(
     f_binary, f_unary, a::Tensor{Ta, S, N}, bs::Vararg{Tensor{Tb, S, N} where Tb <: Number}
 ) where {Ta <: Number, S <: SymmetrySector, N}
