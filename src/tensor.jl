@@ -188,7 +188,7 @@ function _map(
     return t
 end
 
-for op = (:+, :-, :*)
+for op = (:+, :-, :*, :/)
     eval(quote
         function Base.$op(a::Tensor{Ta}, b::Tb) where {Ta <: Number, Tb <: Number}
             t = Tensor{promote_type(Ta, Tb)}(a)
@@ -197,6 +197,10 @@ for op = (:+, :-, :*)
             end
             return t
         end
+    end)
+end
+for op = (:+, :-, :*, :\)
+    eval(quote
         function Base.$op(a::Ta, b::Tensor{Tb}) where {Ta <: Number, Tb <: Number}
             t = Tensor{promote_type(Ta, Tb)}(b)
             for block in values(t.components)
