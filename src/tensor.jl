@@ -379,7 +379,7 @@ function unmatched(
 ) where {S <: SymmetrySector, N}
     unmatched = fill(true, N)
     for leglike in leglikes
-        for (k, leg) in legs
+        for (k, leg) in pairs(legs)
             unmatched[k] || continue
             if matching(leglike, leg)
                 unmatched[k] = false
@@ -394,26 +394,31 @@ function svd(
     t::Tensor{T, S}, splitoff::LegLike{S}...; maxblockdim::Int = typemax(Int)
 ) where {T <: Number, S <: SymmetrySector}
     remaining = unmatched(t.legs, splitoff)
-    tmatrix = mergelegs(t, splitoff, remaining)
+    tmatrix = mergelegs(t, remaining, splitoff)
+    prune!(tmatrix)
     Ucomps = Dict{NTuple{2, S}, Array{T, 2}}()
     Scomps = Dict{NTuple{2, S}, Array{T, 2}}()
     Vcomps = Dict{NTuple{2, S}, Array{T, 2}}()
-    total = combine(tmatrix.legs, first(keys(tmatrix.components)))
+    total = combine(getfield.(tmatrix.legs, :connector), first(keys(tmatrix.components)))
     for (sectors, block) in tmatrix.components
-        @assert total == combine(t.legs, sectors)
+        @assert total == combine(getfield.(tmatrix.legs, :connector), sectors)
         F = svd!(block)
         cutoff = min(length(F.S), maxblockdim)
-        sector_split, sector_remain = sectors
-        Ucomps[sector_split, sector_split] = F.U[:, begin:cutoff]
-        Scomps[sector_split, sector_remain] = Diagonal(F.S[begin:cutoff])
-        Vcomps[sector_remain, sector_remain] = F.Vt[begin:cutoff, :]
+        sector_remain, sector_split = sectors
+        Ucomps[sector_remain, sector_split] = F.U[:, begin:cutoff]
+        Scomps[sector_split, sector_split] = Diagonal(F.S[begin:cutoff])
+        Vcomps[sector_split, sector_split] = F.Vt[begin:cutoff, :]
     end
-    leg_split, leg_remain = tmatrix.legs
-    Umatrix = Tensor(Ucomps, leg_split, dual(leg_split.connector))
-    Vmatrix = Tensor(Vcomps, dual(leg_remain.connector), leg_remain)
-    Stensor = Tensor(Scomps, dual(Umatrix.legs[2]), dual(Vmatrix.legs[1]))
-    Utensor = separatelegs(Umatrix, leg_split)
-    Vtensor = separatelegs(Vmatrix, leg_remain)
+    leg_remain, leg_split = tmatrix.legs
+    Umatrix = Tensor(Ucomps, leg_remain, leg_split.connector)
+    Uinner = Umatrix.legs[2]
+    Vinner = copy(Uinner)
+    Uinner.connection.id = nextid()
+    Vinner.connection.id = nextid()
+    Stensor = Tensor(Scomps, dual(Uinner, connect = true), Vinner)
+    Vmatrix = Tensor(Vcomps, dual(Vinner, connect = true), leg_split)
+    Utensor = separatelegs(Umatrix, leg_remain)
+    Vtensor = separatelegs(Vmatrix, leg_split)
     return Utensor, Stensor, Vtensor
 end
 
@@ -421,22 +426,25 @@ function qr(
     t::Tensor{T, S}, splitoff::LegLike{S}...
 ) where {T <: Number, S <: SymmetrySector}
     remaining = unmatched(t.legs, splitoff)
-    tmatrix = mergelegs(t, splitoff, remaining)
+    tmatrix = mergelegs(t, remaining, splitoff)
+    prune!(tmatrix)
     Qcomps = Dict{NTuple{2, S}, Array{T, 2}}()
     Rcomps = Dict{NTuple{2, S}, Array{T, 2}}()
-    total = combine(t.legs, first(keys(tmatrix.components)))
+    total = combine(getfield.(tmatrix.legs, :connector), first(keys(tmatrix.components)))
     for (sectors, block) in tmatrix.components
-        @assert total == combine(tmatrix.legs, sectors)
+        @assert total == combine(getfield.(tmatrix.legs, :connector), sectors)
         F = qr!(block)
-        (sector_split, sector_remain) = sectors
-        Qcomps[sector_split, sector_split] = F.Q
-        Rcomps[sector_split, sector_remain] = F.R
+        (sector_remain, sector_split) = sectors
+        Qcomps[sector_remain, sector_split] = F.Q
+        Rcomps[sector_split, sector_split] = F.R
     end
-    leg_split, leg_remain = tmatrix.legs
-    Qmatrix = Tensor(Qcomps, leg_split, dual(leg_split.connector))
-    Rmatrix = Tensor(Rcomps, dual(Qmatrix.legs[2]), leg_remain)
-    Qtensor = separatelegs(Qmatrix, leg_split)
-    Rtensor = separatelegs(Rmatrix, leg_remain)
+    leg_remain, leg_split = tmatrix.legs
+    Qmatrix = Tensor(Qcomps, leg_remain, leg_split.connector)
+    inner = Qmatrix.legs[2]
+    inner.connection.id = nextid()
+    Rmatrix = Tensor(Rcomps, dual(inner, connect = true), leg_split)
+    Qtensor = separatelegs(Qmatrix, leg_remain)
+    Rtensor = separatelegs(Rmatrix, leg_split)
     return Qtensor, Rtensor
 end
 
@@ -445,19 +453,22 @@ function lq(
 ) where {T <: Number, S <: SymmetrySector}
     remaining = unmatched(t.legs, splitoff)
     tmatrix = mergelegs(t, remaining, splitoff)
+    prune!(tmatrix)
     Lcomps = Dict{NTuple{2, S}, Array{T, 2}}()
     Qcomps = Dict{NTuple{2, S}, Array{T, 2}}()
-    total = combine(tmatrix.legs, first(keys(tmatrix.components)))
+    total = combine(getfield.(tmatrix.legs, :connector), first(keys(tmatrix.components)))
     for (sectors, block) in tmatrix.components
-        @assert total == combine(tmatrix.legs, sectors)
+        @assert total == combine(getfield.(tmatrix.legs, :connector), sectors)
         F = lq!(block)
         (sector_remain, sector_split) = sectors
         Lcomps[sector_remain, sector_split] = F.L
         Qcomps[sector_split, sector_split] = F.Q
     end
     leg_remain, leg_split = tmatrix.legs
-    Lmatrix = Tensor(Lcomps, leg_remain, dual(leg_remain.connector))
-    Qmatrix = Tensor(Qcomps, dual(Lmatrix.legs[2]), leg_split)
+    Lmatrix = Tensor(Lcomps, leg_remain, leg_split.connector)
+    inner = Lmatrix.legs[2]
+    inner.connection.id = nextid()
+    Qmatrix = Tensor(Qcomps, dual(inner, connect = true), leg_split)
     Ltensor = separatelegs(Lmatrix, leg_remain)
     Qtensor = separatelegs(Qmatrix, leg_split)
     return Ltensor, Qtensor
