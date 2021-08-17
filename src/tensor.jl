@@ -47,6 +47,12 @@ struct Tensor{T <: Number, S <: SymmetrySector, N}
     end
 end
 function Tensor{T}(
+    components::Dict{Tuple{}, Array{T, 0}}, legs::Tuple{}; check = true
+) where T <: Number
+    components[()][]
+end
+
+function Tensor{T}(
     t::Tensor{Tprime, S, N}
 ) where {T <: Number, Tprime <: Number, S <: SymmetrySector, N}
     Tensor{T}(
