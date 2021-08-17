@@ -270,12 +270,12 @@ end
 function mergelegs(
     t::Tensor{T, S}, legiterators...
 ) where {T <: Number, S <: SymmetrySector}
+    Nmerge = 0
+    mergers = [(Nmerge + 1) : (Nmerge += length(merger)) for merger in legiterators]
     leglikes = Tuple(Iterators.flatten(legiterators))
     identperm, perm, m = matchingpermutations(leglikes, t.legs, matchs = flip(matching))
     (m == Nmerge && identperm == 1:m) ||
         throw(ArgumentError("tensor has not all of the legs to merge"))
-    Nmerge = 0
-    mergers = [(Nmerge + 1) : (Nmerge += length(merger)) for merger in legiterators]
     keep = Nmerge + 1 : rank(t)
     Nmerged = length(mergers)
     N = Nmerged + length(keep)
@@ -294,11 +294,11 @@ function mergelegs(
         mergedsectors[kept] .= permsectors[keep]
         ranges[kept] .= axes.(Ref(permblock), keep)
         mergedblock = reshape(permblock, length.(ranges)...)
-        fullblock = get!(comps, Tuple(mergedsectors)) do 
+        fullblock = get!(comps, Tuple(mergedsectors)) do
             for (k, sector) in pairs(@view mergedsectors[1:Nmerged])
                 fulldims[k] = mergedlegs[k].dimensions[sector]
             end
-            fulldims[kept] .= length.(@view ranges[keep])
+            fulldims[kept] .= length.(@view ranges[kept])
             zeros(T, fulldims...)
         end
         fullblock[ranges...] = mergedblock
