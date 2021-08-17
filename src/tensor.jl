@@ -138,8 +138,8 @@ function _get_sectors_indices(
 end
 
 function Base.getindex(
-    t::Tensor{T, S, N}, 
-    indices::Vararg{Pair{LegLike{S}, <: Any}, N}
+    t::Tensor{T, S, N},
+    indices::Vararg{Pair{<: LegLike{S}, <: Any}, N}
 ) where {T <: Number, S <: SymmetrySector, N}
     legs = getproperty.(indices, :first)
     perm = legspermutation(t, legs)
