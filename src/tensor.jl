@@ -115,6 +115,26 @@ function Base.adjoint(t::Tensor{T}) where T <: Number
     )
 end
 
+function Base.show(io::IO, mime::MIME"text/plain", t::Tensor)
+    show(io, typeof(t)); println(io, " with legs:")
+    for leg in t.legs
+        print(io, "  "); show(io, mime, leg); println(io)
+    end
+    print(io, "blocks:")
+    for (sectors, block) in t.components
+        println(io); print(io, "  "); show(IOContext(io, :compact => true), sectors)
+        print(io, " => "); join(io, size(block), "×"); print(io, " block")
+    end
+end
+
+function Base.show(io::IO, t::Tensor)
+    TensorT = typeof(t)
+    show(io, (:typeinfo => TensorT) in io ? Tensor : TensorT)
+    print(io, "(")
+    join(io, getfield.(t.legs, :connector), ", ")
+    print(io, ")")
+end
+
 
 rank(::Tensor{T, S, N}) where {T <: Number, S <: SymmetrySector, N} = N
 
