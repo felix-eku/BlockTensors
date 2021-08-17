@@ -88,6 +88,10 @@ function Base.hash(space::Space, h::UInt)
     return h
 end
 
+Base.iterate(space::Space, state = ()) = state ≡ nothing ? nothing : (space, nothing)
+
+Base.copy(a::Space) = Space(a.name, copy(a.tags))
+
 function Base.show(io::IO, space::Space)
     show(io, Space)
     show(io, MIME"text/no-type"(), space)
@@ -147,12 +151,16 @@ for Connect = (:Incoming, :Outgoing)
 
     Base.:(==)(a::$Connect, b::$Connect) = a.space == b.space
 
+    Base.copy(a::$Connect) = $Connect(copy(a.space))
+
     matching(c::$Connect, match::$Connect) = matching(c.space, match.space)
 
     end)
 end
 
 Base.hash(c::Connector, h::UInt) = hash(c.space, hash(typeof(c), h))
+
+Base.iterate(c::Connector, state = ()) = state ≡ nothing ? nothing : (c, nothing)
 
 matching(space::Space, match::Connector) = matching(space, match.space)
 
@@ -192,7 +200,7 @@ total_direction(connectors::Connector...) = total_direction(connectors)
 
 Connector(x::Real) = x < 0 ? Incoming : Outgoing
 
-addtags!(c::Connector; tags...) = addtags!(c.space, tags...)
+addtags!(c::Connector; tags...) = addtags!(c.space; tags...)
 
 
 combine(::Incoming, sector::SymmetrySector) = -sector
@@ -257,6 +265,10 @@ function Base.setproperty!(x::ConnectionId, name::Symbol, id::Integer)
     setproperty!(x, name, convert(UInt, id))
 end
 
+Base.copy(x::ConnectionId) = ConnectionId(x.id)
+
+Base.:(==)(a::ConnectionId, b::ConnectionId) = a.id == b.id
+
 nextid() = maxid::UInt + 1
 
 end
@@ -300,16 +312,22 @@ Leg(space::Space, legs::Leg...) = Leg(space, legs)
 Leg(changespace, legs::Leg...) = Leg(changespace, legs)
 
 function Leg(leg::Leg{S}, dimensions::SectorDims{S}) where S <: SymmetrySector
-    leg.dimensions == dimensions ||
+    dimensions.dims ⊆ leg.dimensions.dims ||
         throw(ArgumentError("Leg has different dimensions than specified"))
-    return leg
+    return Leg(leg.connection, leg.connector, dimensions, leg.components, leg.arrangement)
 end
 
-addtags!(x::Leg; tags...) = addtags!(x.connector.space; tags...)
+function Base.copy(leg::Leg)
+    Leg(
+        copy(leg.connection), copy(leg.connector), 
+        leg.dimensions, leg.components, leg.arrangement
+    )
+end
+
+addtags!(leg::Leg; tags...) = addtags!(leg.connector.space; tags...)
 
 function connect!(a::Leg, b::Leg)
-    @assert a.connection == b.connection == 0 && 
-        a.connector == dual(b.connector) && a.dimensions == b.dimensions
+    @assert a.connector == dual(b.connector) && a.dimensions == b.dimensions
     id = nextid()
     a.connection.id = b.connection.id = id
 end
@@ -329,29 +347,36 @@ function Base.:(==)(a::Leg, b::Leg)
     return true
 end
 
-matching(a::Leg, b::Leg) = a == b
+matching(a::Leg, b::Leg) = a.connector == b.connector
 matching(x::Union{Space, Connector}, match::Leg) = matching(x, match.connector)
 
-dual(leg::Leg; connected::Bool = false) = Leg(
-    connected ? leg.connection : ConnectionId(),
+dual(leg::Leg; connect::Bool = false) = Leg(
+    connect ? copy(leg.connection) : ConnectionId(),
     dual(leg.connector), leg.dimensions, 
     dual.(leg.components), leg.arrangement
 )
-
 function dual(a::Leg, b::Leg)
+    a.connector == dual(b.connector) || return false
+    @assert a.dimensions == b.dimensions
+    return true
+end
+
+function connected(a::Leg, b::Leg)
     a.connection == b.connection && a.connector == dual(b.connector) || return false
-    if a.connection == 0
-        all(dual.(a.components, b.components)) || return false
+    if a.connection.id == 0
+        length(a.components) == length(b.components) || return false
+        all(connected.(a.components, b.components)) || return false
+        @assert a.arrangement == b.arrangement
         connect!(a, b)
-    else
-        @assert all(dual.(a.components, b.components))
     end
-    @assert a.dimensions == b.dimensions && a.arrangement == b.arrangement
+    @assert a.dimensions == b.dimensions
     return true
 end
 
 
-function Base.show(io::IO, leg::Leg{S, C, 0}) where {S <: SymmetrySector, C <: Connector}
+function Base.show(
+    io::IO, leg::Leg{S, C, Tuple{}, 0}
+) where {S <: SymmetrySector, C <: Connector}
     show(io, Leg)
     print(io, "(")
     show(io, leg.connector)

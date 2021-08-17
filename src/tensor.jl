@@ -36,6 +36,9 @@ struct Tensor{T <: Number, S <: SymmetrySector, N}
         check::Bool = true
     ) where {T <: Number, S <: SymmetrySector, N}
         if check
+            allunique(leg.connector for leg in legs) || throw(
+                ArgumentError("multiple legs for the same connector")
+            )
             for (sectors, block) in components
                 checkblockdims(legs, sectors, size(block))
             end
@@ -95,9 +98,9 @@ function Tensor{T}(
 end
 
 function Base.adjoint(t::Tensor{T}) where T <: Number
-    Tensor(
+    Tensor{T}(
         Dict(sectors => conj(block) for (sectors, block) in t.components),
-        adjoint.(t.legs),
+        dual.(t.legs, connect = true),
         check = false
     )
 end
@@ -250,7 +253,7 @@ end
 function Base.:*(
     a::Tensor{Ta, S}, b::Tensor{Tb, S}
 ) where {Ta <: Number, Tb <: Number, S <: SymmetrySector}
-    inds_a, inds_b, m = matchingpermutations(a.legs, b.legs, matchs = dual)
+    inds_a, inds_b, m = matchingpermutations(a.legs, b.legs, matchs = connected)
     outer_a = @view inds_a[begin + m : end]
     inner_a = @view inds_a[begin : begin + m - 1]
     outer_b = @view inds_b[begin + m : end]
