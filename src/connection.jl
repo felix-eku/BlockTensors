@@ -212,22 +212,20 @@ function combine(
     combconnector = combine(connectors)
     CombinedDims = Vector{Pair{NTuple{N, S}, Int}}
     combs = DefaultDict{S, CombinedDims}(CombinedDims)
-    for sector_dim_pairs in Iterators.product(dims)
-        sectors, dims = zip(sector_dim_pairs)
+    for sector_dim_pairs in Iterators.product(dims...)
+        sectors, dims = zip(sector_dim_pairs...)
         combsector = combine(combconnector, combine(connectors, sectors))
-        push!(totals[combsector], sectors => prod(dims))
+        push!(combs[combsector], sectors => prod(dims))
     end
-    totaldims = Vector{S, Int}
+    totaldims = Vector{Pair{S, Int}}()
     sizehint!(totaldims, length(combs))
     arrangement = Arrangement{N, S}()
     sizehint!(arrangement, sum(length, values(combs)))
     for (combsector, combdims) in combs
         totaldim = 0
-        merge!(arrangement, (
-                combsector, (totaldim + 1) : (totaldim += dim)
-                for (sectors, dim) in combdims
-            )
-        )
+        for (sectors, dim) in combdims
+            arrangement[sectors] = combsector, (totaldim + 1) : (totaldim += dim)
+        end
         push!(totaldims, combsector => totaldim)
     end
     return combconnector, SectorDims(totaldims), arrangement
