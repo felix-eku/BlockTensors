@@ -372,7 +372,7 @@ end
 Base.show(io::IO, mime::MIME"text/plain", leg::Leg) = show(io, mime, leg.connector)
 
 
-function invertarrangement(arrangement::Arrangement{S, N}) where {S <: SymmetrySector, N}
+function invertarrangement(arrangement::Arrangement{N, S}) where {S <: SymmetrySector, N}
     RangeSectorVector = Vector{Pair{UnitRange{Int}, NTuple{N, S}}}
     rangesectors = DefaultDict{S, RangeSectorVector}(RangeSectorVector)
     for (sectors, (sector, range)) in arrangement
