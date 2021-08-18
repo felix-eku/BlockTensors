@@ -3,7 +3,7 @@ module TensorChain
 export chaintensors
 
 using Base: setindex
-using BlockTensors
+using ..BlockTensors
 
 struct Connection{N}
     positions::Pair{CartesianIndex{N}, CartesianIndex{N}}
