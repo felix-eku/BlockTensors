@@ -310,7 +310,10 @@ function mergelegs(
     t::Tensor{T, S}, legiterators...
 ) where {T <: Number, S <: SymmetrySector}
     Nmerge = 0
-    mergers = [(Nmerge + 1) : (Nmerge += length(merger)) for merger in legiterators]
+    mergers = [
+        (Nmerge + 1) : (Nmerge += length(merger)) 
+        for merger in legiterators if length(merger) > 0
+    ]
     leglikes = Tuple(Iterators.flatten(legiterators))
     identperm, perm, m = matchingpermutations(leglikes, t.legs, matchs = flip(matching))
     (m == Nmerge && identperm == 1:m) ||
