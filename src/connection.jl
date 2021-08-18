@@ -89,6 +89,7 @@ function Base.hash(space::Space, h::UInt)
 end
 
 Base.iterate(space::Space, state = ()) = state ≡ nothing ? nothing : (space, nothing)
+Base.broadcastable(space::Space) = Ref(space)
 
 Base.copy(a::Space) = Space(a.name, copy(a.tags))
 
@@ -161,6 +162,7 @@ end
 Base.hash(c::Connector, h::UInt) = hash(c.space, hash(typeof(c), h))
 
 Base.iterate(c::Connector, state = ()) = state ≡ nothing ? nothing : (c, nothing)
+Base.broadcastable(c::Connector) = Ref(c)
 
 matching(space::Space, match::Connector) = matching(space, match.space)
 
