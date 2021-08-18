@@ -48,15 +48,16 @@ function MPO_MPS_contraction(MPO, MPS, MPOmerging, MPSmerging)
     for k in eachindex(MPO, MPS)
         contraction = MPO[k] * MPS[k]
         incoming = union(
-            matching.(Incoming.(MPSmerging), Ref(MPS)),
-            matching.(Incoming.(MPOmerging), Ref(MPO))
+            matching.(Incoming.(MPSmerging), Ref(MPS[k])),
+            matching.(Incoming.(MPOmerging), Ref(MPO[k]))
         )
         outgoing = union(
-            matching.(Outgoing.(MPSmerging), Ref(MPS)),
-            matching.(Outgoing.(MPOmerging), Ref(MPO))
+            matching.(Outgoing.(MPSmerging), Ref(MPS[k])),
+            matching.(Outgoing.(MPOmerging), Ref(MPO[k]))
         )
         contractionMPS[k] = mergelegs(contraction, incoming, outgoing)
     end
+    return contractionMPS
 end
 function MPO_MPS_contraction(MPO, MPS, merging)
     MPO_MPS_contraction(MPO, MPS, merging, merging)
