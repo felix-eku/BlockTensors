@@ -15,5 +15,6 @@ include("connection.jl")
 include("tensor.jl")
 
 include("TensorChain.jl")
+include("MatrixProductStates.jl")
 
 end
