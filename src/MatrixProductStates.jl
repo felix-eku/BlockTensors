@@ -73,11 +73,13 @@ function exchangegauge(A::Tensor, B::Tensor, connecting, maxblockdim)
     return U, (S * V) * B
 end
 
-function canonicalize!(MPS, K, connecting, params...)
+function canonicalize!(MPS, K, connecting, params...; normalize::Bool = true)
     for (k1, k2) in zip(K[begin : end - 1], K[begin + 1 : end])
         MPS[k1], MPS[k2] = exchangegauge(MPS[k1], MPS[k2], connecting, params...)
     end
-    MPS[K[end]] = MPS[K[end]] / √(MPS[K[end]]'MPS[K[end]])
+    if normalize
+        MPS[K[end]] = MPS[K[end]] / √(MPS[K[end]]'MPS[K[end]])
+    end
 end
 
 end
