@@ -107,6 +107,8 @@ function Base.copy(t::Tensor{T}) where T <: Number
     Tensor{T}(t.components, copy.(t.legs), check = false)
 end
 
+Base.eltype(::Type{<:Tensor{T}}) where T <: Number = T
+
 function Base.adjoint(t::Tensor{T}) where T <: Number
     Tensor{T}(
         Dict(sectors => conj(block) for (sectors, block) in t.components),
