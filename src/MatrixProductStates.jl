@@ -78,8 +78,11 @@ function canonicalize!(MPS, K, connecting, params...; normalize::Bool = true)
         MPS[k1], MPS[k2] = exchangegauge(MPS[k1], MPS[k2], connecting, params...)
     end
     if normalize
-        MPS[K[end]] = MPS[K[end]] / √(MPS[K[end]]'MPS[K[end]])
+        norm = √(MPS[K[end]]'MPS[K[end]])
+        MPS[K[end]] = MPS[K[end]] / norm
+        return norm
     end
+    return nothing
 end
 
 end
