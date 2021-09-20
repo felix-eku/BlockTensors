@@ -2,7 +2,7 @@ module MatrixProductStates
 
 export norm, matrixelement, expectationvalue
 export MPO_MPS_contraction
-export exchangegauge, canonicalize!
+export exchangegauge, canonicalize!, bond_canonicalize!
 
 using ..BlockTensors
 using ..TensorChain: findconnections
@@ -83,6 +83,17 @@ function canonicalize!(MPS, K, connecting, params...; normalize::Bool = true)
         return norm
     end
     return nothing
+end
+
+function bond_canonicalize!(MPS, bond, connecting)
+    K = eachindex(MPS)
+    knext = K[bond + oneunit(bond)]
+    canonicalize!(MPS, K[begin : bond], connecting, normalize = false)
+    canonicalize!(MPS, K[bond : end], dual(connecting), normalize = false)
+    U, S, V = svd(MPS[K[bond]], connecting)
+    MPS[K[bond]] = U * S
+    MPS[knext] = V * MPS[knext]
+    return S
 end
 
 end
