@@ -3,6 +3,9 @@ module MatrixProductStates
 export norm, matrixelement, expectationvalue
 export MPO_MPS_contraction
 export exchangegauge, canonicalize!, bond_canonicalize!
+export density_probabilities, entropy, entanglement_entropy
+
+using LinearAlgebra: diagind
 
 using ..BlockTensors
 using ..TensorChain: findconnections
@@ -95,5 +98,23 @@ function bond_canonicalize!(MPS, bond, connecting)
     MPS[knext] = V * MPS[knext]
     return S
 end
+
+function density_probabilities(S)
+    singulars = Vector{real(eltype(S))}()
+    append!(singulars, (
+        real.(view(block, diagind(block))) 
+        for (sector, block) in S.components
+    )...)
+    sort!(singulars, rev = true)
+    probs = singulars.^2
+    return probs / sum(probs)
+end
+function density_probabilities(MPS, bond, connecting)
+    density_probabilities(bond_canonicalize!(MPS, bond, connecting))
+end
+
+entropy(p) = - sum(p .* log.(p))
+entanglement_entropy = entropy ∘ density_probabilities
+
 
 end
