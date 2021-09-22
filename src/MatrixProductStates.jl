@@ -92,7 +92,7 @@ function bond_canonicalize!(MPS, bond, connecting)
     K = eachindex(MPS)
     knext = K[bond + oneunit(bond)]
     canonicalize!(MPS, K[begin : bond], connecting, normalize = false)
-    canonicalize!(MPS, K[bond : end], dual(connecting), normalize = false)
+    canonicalize!(MPS, reverse(K[bond : end]), dual(connecting), normalize = false)
     U, S, V = svd(MPS[K[bond]], connecting)
     MPS[K[bond]] = U * S
     MPS[knext] = V * MPS[knext]
