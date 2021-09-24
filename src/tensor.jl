@@ -420,23 +420,48 @@ function unmatched(
 end
 
 function svd(
-    t::Tensor{T, S}, splitoff::LegLike{S}...; maxblockdim::Int = typemax(Int)
+    t::Tensor{T, S}, splitoff::LegLike{S}...; 
+    maxrelerror = zero(real(T)),
+    maxabserror = zero(real(T)),
+    of = x -> x^2,
 ) where {T <: Number, S <: SymmetrySector}
     remaining = unmatched(t.legs, splitoff)
     tmatrix = mergelegs(t, remaining, splitoff)
     prune!(tmatrix)
+    singulars = Vector{real(T)}()
+    sizehint!(singulars, minimum(leg -> leg.dimensions.totaldim, tmatrix.legs))
     Ucomps = Dict{NTuple{2, S}, Array{T, 2}}()
-    Scomps = Dict{NTuple{2, S}, Array{T, 2}}()
+    Scomps = Dict{NTuple{2, S}, Array{real(T), 2}}()
     Vcomps = Dict{NTuple{2, S}, Array{T, 2}}()
     total = combine(getfield.(tmatrix.legs, :connector), first(keys(tmatrix.components)))
     for (sectors, block) in tmatrix.components
         @assert total == combine(getfield.(tmatrix.legs, :connector), sectors)
         F = svd!(block)
-        cutoff = min(length(F.S), maxblockdim)
+        append!(singulars, F.S)
         sector_remain, sector_split = sectors
-        Ucomps[sector_remain, sector_split] = F.U[:, begin:cutoff]
-        Scomps[sector_split, sector_split] = Diagonal(F.S[begin:cutoff])
-        Vcomps[sector_split, sector_split] = F.Vt[begin:cutoff, :]
+        Ucomps[sector_remain, sector_split] = F.U
+        Scomps[sector_split, sector_split] = Diagonal(F.S)
+        Vcomps[sector_split, sector_split] = F.Vt
+    end
+    λs = of.(singulars)
+    sort!(λs, rev = true)
+    λtotal = sum(λs)
+    errorcutoff = max(maxrelerror * λtotal, maxabserror)
+    error = zero(eltype(λs))
+    local λ
+    for outer λ in Iterators.reverse(λs)
+        error += λ
+        error < errorcutoff || break
+    end
+    for ((sector_remain, sector_split), Ublock) in Ucomps 
+        Vblock = Vcomps[sector_split, sector_split]
+        singulars_sector = diag(Scomps[sector_split, sector_split])
+        cutoff = findlast(s -> of(s) ≥ λ, singulars_sector)
+        if cutoff ≢ nothing
+            Ucomps[sector_remain, sector_split] = Ublock[:, begin:cutoff]
+            Scomps[sector_split, sector_split] = Diagonal(singulars_sector[begin:cutoff])
+            Vcomps[sector_split, sector_split] = Vblock[begin:cutoff, :]
+        end
     end
     leg_remain, leg_split = tmatrix.legs
     Umatrix = Tensor(Ucomps, leg_remain, leg_split.connector)
@@ -448,7 +473,7 @@ function svd(
     Vmatrix = Tensor(Vcomps, dual(Vinner, connect = true), leg_split)
     Utensor = separatelegs(Umatrix, leg_remain)
     Vtensor = separatelegs(Vmatrix, leg_split)
-    return Utensor, Stensor, Vtensor
+    return Utensor, Stensor, Vtensor, singulars, (error - λ) / λtotal, λ, λtotal
 end
 
 function qr(

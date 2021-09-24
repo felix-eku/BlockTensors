@@ -71,14 +71,14 @@ function exchangegauge(A::Tensor, B::Tensor, connecting)
     return Q, R * B
 end
 
-function exchangegauge(A::Tensor, B::Tensor, connecting, maxblockdim)
-    U, S, V = svd(A, connecting...; maxblockdim)
+function exchangegauge(A::Tensor, B::Tensor, connecting; params...)
+    U, S, V = svd(A, connecting...; params...)
     return U, (S * V) * B
 end
 
-function canonicalize!(MPS, K, connecting, params...; normalize::Bool = true)
+function canonicalize!(MPS, K, connecting; normalize::Bool = true, params...)
     for (k1, k2) in zip(K[begin : end - 1], K[begin + 1 : end])
-        MPS[k1], MPS[k2] = exchangegauge(MPS[k1], MPS[k2], connecting, params...)
+        MPS[k1], MPS[k2] = exchangegauge(MPS[k1], MPS[k2], connecting; params...)
     end
     if normalize
         norm = √(MPS[K[end]]'MPS[K[end]])
@@ -93,19 +93,13 @@ function bond_canonicalize!(MPS, bond, connecting)
     knext = K[bond + oneunit(bond)]
     canonicalize!(MPS, K[begin : bond], connecting, normalize = false)
     canonicalize!(MPS, reverse(K[bond : end]), dual(connecting), normalize = false)
-    U, S, V = svd(MPS[K[bond]], connecting)
+    U, S, V, singulars = svd(MPS[K[bond]], connecting)
     MPS[K[bond]] = U * S
     MPS[knext] = V * MPS[knext]
-    return S
+    return singulars
 end
 
-function density_probabilities(S)
-    singulars = Vector{real(eltype(S))}()
-    append!(singulars, (
-        real.(view(block, diagind(block))) 
-        for (sector, block) in S.components
-    )...)
-    sort!(singulars, rev = true)
+function density_probabilities(singulars)
     probs = singulars.^2
     return probs / sum(probs)
 end
