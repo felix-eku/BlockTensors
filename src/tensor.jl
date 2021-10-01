@@ -431,7 +431,7 @@ function svd(
     singulars = Vector{real(T)}()
     sizehint!(singulars, minimum(leg -> leg.dimensions.totaldim, tmatrix.legs))
     Ucomps = Dict{NTuple{2, S}, Array{T, 2}}()
-    Scomps = Dict{NTuple{2, S}, Array{real(T), 2}}()
+    Scomps = Dict{NTuple{2, S}, Diagonal{real(T)}}()
     Vcomps = Dict{NTuple{2, S}, Array{T, 2}}()
     total = combine(getfield.(tmatrix.legs, :connector), first(keys(tmatrix.components)))
     for (sectors, block) in tmatrix.components
@@ -443,8 +443,8 @@ function svd(
         Scomps[sector_split, sector_split] = Diagonal(F.S)
         Vcomps[sector_split, sector_split] = F.Vt
     end
+    sort!(singulars, rev = true)
     λs = of.(singulars)
-    sort!(λs, rev = true)
     λtotal = sum(λs)
     errorcutoff = max(maxrelerror * λtotal, maxabserror)
     error = zero(eltype(λs))
@@ -453,6 +453,7 @@ function svd(
         error += λ
         error < errorcutoff || break
     end
+    error -= λ
     for ((sector_remain, sector_split), Ublock) in Ucomps 
         Vblock = Vcomps[sector_split, sector_split]
         singulars_sector = diag(Scomps[sector_split, sector_split])
@@ -461,6 +462,10 @@ function svd(
             Ucomps[sector_remain, sector_split] = Ublock[:, begin:cutoff]
             Scomps[sector_split, sector_split] = Diagonal(singulars_sector[begin:cutoff])
             Vcomps[sector_split, sector_split] = Vblock[begin:cutoff, :]
+        else
+            delete!(Ucomps, (sector_remain, sector_split))
+            delete!(Scomps, (sector_split, sector_split))
+            delete!(Vcomps, (sector_split, sector_split))
         end
     end
     leg_remain, leg_split = tmatrix.legs
@@ -473,7 +478,7 @@ function svd(
     Vmatrix = Tensor(Vcomps, dual(Vinner, connect = true), leg_split)
     Utensor = separatelegs(Umatrix, leg_remain)
     Vtensor = separatelegs(Vmatrix, leg_split)
-    return Utensor, Stensor, Vtensor, singulars, (error - λ) / λtotal, λ, λtotal
+    return Utensor, Stensor, Vtensor, singulars, error / λtotal, λ, λtotal
 end
 
 function qr(
