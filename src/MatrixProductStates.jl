@@ -66,14 +66,15 @@ function MPO_MPS_contraction(MPO, MPS, merging)
     MPO_MPS_contraction(MPO, MPS, merging, merging)
 end
 
-function exchangegauge(A::Tensor, B::Tensor, connecting)
-    Q, R = qr(A, connecting...)
-    return Q, R * B
-end
 
-function exchangegauge(A::Tensor, B::Tensor, connecting; params...)
-    U, S, V = svd(A, connecting...; params...)
-    return U, (S * V) * B
+function exchangegauge(A::Tensor, B::Tensor, connecting; truncation...)
+    if isempty(truncation)
+        Q, R = qr(A, connecting...)
+        return Q, R * B
+    else
+        U, S, V = svd(A, connecting...; truncation...)
+        return U, (S * V) * B
+    end
 end
 
 function canonicalize!(MPS, K, connecting; normalize::Bool = true, params...)
