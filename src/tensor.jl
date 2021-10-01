@@ -424,6 +424,7 @@ function svd(
     maxrelerror = zero(real(T)),
     maxabserror = zero(real(T)),
     of = x -> x^2,
+    maxdim = typemax(Int),
 ) where {T <: Number, S <: SymmetrySector}
     remaining = unmatched(t.legs, splitoff)
     tmatrix = mergelegs(t, remaining, splitoff)
@@ -454,6 +455,7 @@ function svd(
         error < errorcutoff || break
     end
     error -= λ
+    maxdim > lastindex(λs) || (λ = max(λ, λs[maxdim]))
     for ((sector_remain, sector_split), Ublock) in Ucomps 
         Vblock = Vcomps[sector_split, sector_split]
         singulars_sector = diag(Scomps[sector_split, sector_split])
