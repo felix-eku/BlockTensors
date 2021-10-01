@@ -77,9 +77,9 @@ function exchangegauge(A::Tensor, B::Tensor, connecting; truncation...)
     end
 end
 
-function canonicalize!(MPS, K, connecting; normalize::Bool = true, params...)
+function canonicalize!(MPS, K, connecting; normalize::Bool = true, truncation...)
     for (k1, k2) in zip(K[begin : end - 1], K[begin + 1 : end])
-        MPS[k1], MPS[k2] = exchangegauge(MPS[k1], MPS[k2], connecting; params...)
+        MPS[k1], MPS[k2] = exchangegauge(MPS[k1], MPS[k2], connecting; truncation...)
     end
     if normalize
         norm = √(MPS[K[end]]'MPS[K[end]])
