@@ -1,6 +1,7 @@
 module MatrixProductStates
 
 export norm, matrixelement, expectationvalue
+export bond_dimension
 export MPO_MPS_contraction
 export exchangegauge, canonicalize!, bond_canonicalize!
 export density_probabilities, entropy, entanglement_entropy
@@ -44,6 +45,10 @@ function matrixelement(braMPS, MPO, ketMPS)
 end
 
 expectationvalue(MPO, ketMPS) = matrixelement(adjointMPS(ketMPS), MPO, ketMPS)
+
+function bond_dimension(MPS, bond, connecting)
+    only(matching(connecting, MPS[eachindex(MPS)[bond]])).dimensions.totaldim
+end
 
 
 function MPO_MPS_contraction(MPO, MPS, MPOmerging, MPSmerging)
