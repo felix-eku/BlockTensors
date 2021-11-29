@@ -329,7 +329,7 @@ end
 addtags!(leg::Leg; tags...) = addtags!(leg.connector.space; tags...)
 
 function connect!(a::Leg, b::Leg)
-    @assert a.connector == dual(b.connector) && a.dimensions == b.dimensions
+    @assert dual(a.connector, b.connector) && a.dimensions == b.dimensions
     id = nextid()
     a.connection.id = b.connection.id = id
 end
@@ -358,13 +358,13 @@ dual(leg::Leg; connect::Bool = false) = Leg(
     dual.(leg.components), leg.arrangement
 )
 function dual(a::Leg, b::Leg)
-    a.connector == dual(b.connector) || return false
+    dual(a.connector, b.connector) || return false
     @assert a.dimensions == b.dimensions
     return true
 end
 
 function connected(a::Leg, b::Leg)
-    a.connection == b.connection && a.connector == dual(b.connector) || return false
+    a.connection == b.connection && dual(a.connector, b.connector) || return false
     if a.connection.id == 0
         length(a.components) == length(b.components) || return false
         all(connected.(a.components, b.components)) || return false
