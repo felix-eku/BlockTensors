@@ -250,13 +250,13 @@ maxid = UInt(0)
 
 mutable struct ConnectionId
     id::UInt
-    ConnectionId() = new(UInt(0))
+    function ConnectionId(id::UInt)
+        global maxid = max(maxid::UInt, id)
+        new(id)
+    end
 end
-function ConnectionId(id::UInt)
-    x = ConnectionId()
-    x.id = id
-    return x
-end
+ConnectionId(id::Integer) = ConnectionId(convert(UInt, id))
+ConnectionId() = ConnectionId(nextid())
 
 function Base.setproperty!(x::ConnectionId, name::Symbol, id::UInt)
     name ≡ :id || throw(ErrorException("type ConnectionId has no field $name"))
@@ -301,7 +301,7 @@ function Leg(changespace, legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where S <: Symmet
         getfield.(legs, :connector), getfield.(legs, :dimensions)
     )
     connector = typeof(connector)(changespace(connector.space))
-    Leg(ConnectionId(), connector, dimensions, legs, arrangement)
+    Leg(ConnectionId(0), connector, dimensions, legs, arrangement)
 end
 function Leg(legs::Tuple{Leg{S}, Vararg{Leg{S}}}) where S <: SymmetrySector
     Leg(identity, legs)
