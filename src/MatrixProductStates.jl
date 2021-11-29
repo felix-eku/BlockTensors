@@ -48,7 +48,8 @@ end
 
 
 function bond_dimension(MPS, bond, connecting)
-    only(matching(connecting, MPS[eachindex(MPS)[bond]])).dimensions.totaldim
+    leg = matchlegs(MPS[eachindex(MPS)[bond]], connecting)
+    leg.dimensions.totaldim
 end
 
 function contractchains(chain1, chain2, auxiliary)
