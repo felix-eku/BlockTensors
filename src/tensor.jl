@@ -64,9 +64,9 @@ Tensor(t::Tensor{T}) where T <: Number = Tensor{T}(t)
 
 LegLike{S <: SymmetrySector} = Union{Leg{S}, <:Connector}
 function Tensor{T}(
-    components::Dict{NTuple{N, S}, Array{T, N}}, legs::NTuple{N, LegLike{S}}
-) where {T <: Number, S <: SymmetrySector, N}
+    components::Dict{NTuple{N, S}, Array{T, N}}, legs::NTuple{N, LegLike{S}}, 
     dims = buildsectordims(components)
+) where {T <: Number, S <: SymmetrySector, N}
     legs = Tuple(map(Leg, legs, dims))
     Tensor{T}(components, legs, check = false)
 end
