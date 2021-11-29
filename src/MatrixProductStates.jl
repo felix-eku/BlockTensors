@@ -6,45 +6,46 @@ export MPO_MPS_contraction
 export exchangegauge, canonicalize!, bond_canonicalize!
 export density_probabilities, entropy, entanglement_entropy
 
-using LinearAlgebra: diagind
-
 using ..BlockTensors
-using ..TensorChain: findconnections
+using ..BlockTensors.ConnectionIds
+using ..BlockTensors.TensorChain
 
-function adjointMPS(MPS)
-    connections, _stati = findconnections(MPS, ())
-    adjoint_MPS = adjoint.(MPS)
-    for connection in connections
-        I, J = connection.positions; i, j = connection.legs
-        connect!(adjoint_MPS[I].legs[i], adjoint_MPS[J].legs[j])
+function adjointMPS(MPS, physical)
+    aMPS = adjoint.(MPS)
+    offset = nextid()
+    for T in aMPS, leg in T.legs
+        matching(physical, leg) || (leg.connection.id += offset)
     end
-    return adjoint_MPS
+    return aMPS
 end
 
-function norm(MPS)
-    adjoint_MPS = adjointMPS(MPS)
+function norm(MPS, physical)
     contraction = 1
-    for k in eachindex(MPS, adjoint_MPS)
-        contraction = (contraction * MPS[k]) * adjoint_MPS[k]
+    aMPS = adjointMPS(MPS, physical)
+    connectchain!(MPS, aMPS, physical)
+    for (T, aT) in zip(MPS, aMPS)
+        contraction = (contraction * T) * aT
     end
     return √abs(contraction)
 end
 
 function matrixelement(braMPS, MPO, ketMPS)
     contraction = 1
-    for k in eachindex(braMPS, MPO, ketMPS)
-        for leg in Iterators.flatten((ketMPS[k].legs, braMPS[k].legs))
-            duals = filter(MPOleg -> dual(leg, MPOleg), MPO[k].legs)
-            isempty(duals) && continue
-            any(connected(leg, connectable) for connectable in duals) && continue
-            connect!(leg, only(duals))
-        end
-        contraction = ((contraction * braMPS[k]) * MPO[k]) * ketMPS[k]
+    for (braT, opT, ketT) in zip(braMPS, MPO, ketMPS)
+        contraction = ((contraction * braT) * opT) * ketT
     end
     return contraction
 end
+function matrixelement(braMPS, MPO, ketMPS, physical)
+    connectchain!(ketMPS, MPO, physical)
+    connectchain!(MPO, braMPS, physical)
+    matrixelement(braMPS, MPO, ketMPS)
+end
 
-expectationvalue(MPO, ketMPS) = matrixelement(adjointMPS(ketMPS), MPO, ketMPS)
+function expectationvalue(MPO, ketMPS, physical)
+    matrixelement(adjointMPS(ketMPS, physical), MPO, ketMPS, physical)
+end
+
 
 function bond_dimension(MPS, bond, connecting)
     only(matching(connecting, MPS[eachindex(MPS)[bond]])).dimensions.totaldim
