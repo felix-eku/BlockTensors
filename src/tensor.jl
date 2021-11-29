@@ -141,11 +141,11 @@ end
 rank(::Tensor{T, S, N}) where {T <: Number, S <: SymmetrySector, N} = N
 
 function legspermutation(
-    t::Tensor{T, S, N}, legs::NTuple{N, LegLike{S}}
+    t::Tensor{T, S, N}, leglikes::NTuple{N, LegLike{S}}
 ) where {T <: Number, S <: SymmetrySector, N}
-    identperm, perm, n = matchingpermutations(t.legs, legs)
+    identperm, perm, n = matchingpermutations(t.legs, leglikes)
     n == N || throw(
-        ArgumentError("$legs does not represent a permutation of the legs of the tensor")
+        ArgumentError("$leglikes is not a permutation of the legs of the tensor")
     )
     @assert identperm == 1:N
     return perm
@@ -171,7 +171,7 @@ end
 
 function Base.getindex(
     t::Tensor{T, S, N},
-    indices::Vararg{Pair{<: LegLike{S}, <: Any}, N}
+    indices::Vararg{Pair{<:LegLike{S}, <:Any}, N}
 ) where {T <: Number, S <: SymmetrySector, N}
     legs = getproperty.(indices, :first)
     perm = legspermutation(t, legs)
