@@ -180,7 +180,11 @@ function Base.getindex(
     return PermutedDimsArray(t.components[sectors[perm]], invperm(perm))[inds...]
 end
 
-matching(x::Union{Leg, Connector, Space}, match::Tensor) = matching(x, match.legs)
+matching(x, t::Tensor) = matching(x, t.legs)
+matchingpositions(x, t::Tensor) = findall(matching(x), t.legs)
+
+matchlegs(t::Tensor, leglikes...) = only.(matching.(leglikes, Ref(t)))
+
 
 
 function prune!(t::Tensor)
