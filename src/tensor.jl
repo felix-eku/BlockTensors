@@ -186,6 +186,31 @@ matchingpositions(x, t::Tensor) = findall(matching(x), t.legs)
 matchlegs(t::Tensor, leglikes...) = only.(matching.(leglikes, Ref(t)))
 
 
+function connect!(a::Tensor, b::Tensor, connecting)
+    connect!(a, b, Outgoing(connecting), Incoming(connecting))
+end
+function connect!(a::Tensor, b::Tensor, outgoing::Outgoing, incoming::Incoming)
+    lout = only(matchingpositions(outgoing, a))
+    lin = only(matchingpositions(incoming, b))
+    id = connect!(a.legs[lout], b.legs[lin])
+    return id, lout, lin
+end
+function connect!(a::Tensor, b::Tensor, connecting, lout::Integer, lin::Integer)
+    connect!(a, b, Outgoing(connecting), Incoming(connecting), lout, lin)
+end
+function connect!(
+    a::Tensor, b::Tensor, outgoing::Outgoing, incoming::Incoming, lout::Integer, lin::Integer
+)
+    legout = get(a.legs, lout, nothing)
+    legin = get(b.legs, lin, nothing)
+    if matching(outgoing, legout) && matching(incoming, legin)
+        id = connect!(legout, legin)
+        return id, lout, lin
+    else
+        connect!(a, b, outgoing, incoming)
+    end
+end
+
 
 function prune!(t::Tensor)
     filter!(sectors_block -> !iszero(sectors_block.second), t.components)
