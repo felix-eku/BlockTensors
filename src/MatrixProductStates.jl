@@ -2,7 +2,7 @@ module MatrixProductStates
 
 export norm, matrixelement, expectationvalue
 export bond_dimension
-export MPO_MPS_contraction
+export contractchains
 export exchangegauge, canonicalize!, bond_canonicalize!
 export density_probabilities, entropy, entanglement_entropy
 
@@ -51,25 +51,24 @@ function bond_dimension(MPS, bond, connecting)
     only(matching(connecting, MPS[eachindex(MPS)[bond]])).dimensions.totaldim
 end
 
-
-function MPO_MPS_contraction(MPO, MPS, MPOmerging, MPSmerging)
-    contractionMPS = similar(MPS)
-    for k in eachindex(MPO, MPS)
-        contraction = MPO[k] * MPS[k]
+function contractchains(chain1, chain2, auxiliary)
+    contractchains(chain1, chain2, auxiliary, auxiliary)
+end
+function contractchains(chain1, chain2, auxiliary1, auxiliary2)
+    contraction = similar(chain1)
+    for k in eachindex(chain1, chain2)
+        T = chain1[k] * chain2[k]
         incoming = union(
-            matching.(Incoming.(MPSmerging), Ref(MPS[k])),
-            matching.(Incoming.(MPOmerging), Ref(MPO[k]))
+            matching.(Incoming.(auxiliary1), Ref(chain1[k])),
+            matching.(Incoming.(auxiliary2), Ref(chain2[k]))
         )
         outgoing = union(
-            matching.(Outgoing.(MPSmerging), Ref(MPS[k])),
-            matching.(Outgoing.(MPOmerging), Ref(MPO[k]))
+            matching.(Outgoing.(auxiliary1), Ref(chain1[k])),
+            matching.(Outgoing.(auxiliary2), Ref(chain2[k]))
         )
-        contractionMPS[k] = mergelegs(contraction, incoming, outgoing)
+        contraction[k] = mergelegs(T, incoming, outgoing)
     end
-    return contractionMPS
-end
-function MPO_MPS_contraction(MPO, MPS, merging)
-    MPO_MPS_contraction(MPO, MPS, merging, merging)
+    return contraction
 end
 
 
