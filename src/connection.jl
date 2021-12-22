@@ -154,8 +154,7 @@ for Connect = (:Incoming, :Outgoing)
         space::Space
     end
     $Connect(name::SymbolOrString; tags...) = $Connect(Space(name; tags...))
-    $Connect(c::Connector) = $Connect(c.space)
-
+    $Connect(c::Connector; extratags...) = $Connect(Space(c.space; extratags...))
     Connector(c::$Connect; extratags...) = $Connect(Space(c.space; extratags...))
 
     Base.:(==)(a::$Connect, b::$Connect) = a.space == b.space
