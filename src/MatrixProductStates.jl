@@ -48,7 +48,7 @@ end
 
 
 function bond_dimension(MPS, bond, connecting)
-    leg = matchlegs(MPS[eachindex(MPS)[bond]], connecting)
+    leg = only(matching(connecting, MPS[eachindex(MPS)[bond]]))
     leg.dimensions.totaldim
 end
 
