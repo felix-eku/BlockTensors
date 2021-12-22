@@ -220,7 +220,7 @@ end
 function _map(
     f_binary, f_unary, a::Tensor{Ta, S, N}, bs::Vararg{Tensor{Tb, S, N} where Tb <: Number}
 ) where {Ta <: Number, S <: SymmetrySector, N}
-    T = promote_type(Ta, map(TensorT -> TensorT.parameters[1], typeof(bs).parameters)...)
+    T = promote_type(Ta, map(eltype, typeof(bs).parameters)...)
     t = Tensor{T}(a)
     for b in bs
         perm = legspermutation(t, b.legs)
