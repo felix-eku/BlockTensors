@@ -62,6 +62,8 @@ function Tensor{T}(
 end
 Tensor(t::Tensor{T}) where T <: Number = Tensor{T}(t)
 
+Base.convert(::Type{TensorT}, t::Tensor) where {T <: Number, TensorT <: Tensor{T}} = Tensor{T}(t)
+
 LegLike{S <: SymmetrySector} = Union{Leg{S}, <:Connector}
 function Tensor{T}(
     components::Dict{NTuple{N, S}, Array{T, N}}, legs::NTuple{N, LegLike{S}}, 
