@@ -41,6 +41,14 @@ function Base.hash(d::SectorDims, h::UInt)
     return h
 end
 
+function compatible(a::SectorDims{S}, b::SectorDims{S}) where S <: SymmetrySector
+    all(pairs(a.dims)) do (sector, dim_a)
+        dim_b = get(b.dims, sector, nothing)
+        dim_b ≡ nothing || dim_a == dim_b
+    end
+end
+compatible(a::SectorDims, b::SectorDims) = false
+
 function Base.show(io::IO, d::SectorDims)
     T = typeof(d)
     show(io, ifelse((:typeinfo => T) in io || !isempty(d.dims), SectorDims, T))
@@ -329,7 +337,7 @@ end
 addtags!(leg::Leg; tags...) = addtags!(leg.connector.space; tags...)
 
 function connect!(a::Leg, b::Leg)
-    @assert dual(a.connector, b.connector) && a.dimensions == b.dimensions
+    @assert dual(a.connector, b.connector) && compatible(a.dimensions, b.dimensions)
     id = nextid()
     a.connection.id = b.connection.id = id
 end
@@ -371,7 +379,7 @@ function connected(a::Leg, b::Leg)
         @assert a.arrangement == b.arrangement
         connect!(a, b)
     end
-    @assert a.dimensions == b.dimensions
+    compatible(a.dimensions, b.dimensions)
     return true
 end
 
